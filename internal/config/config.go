@@ -28,6 +28,7 @@ type DrawingAPIConfig struct {
 	BaseURL    string        `yaml:"base_url"`
 	Timeout    time.Duration `yaml:"timeout"`
 	RetryCount int           `yaml:"retry_count"`
+	OutputDir  string        `yaml:"output_dir"`
 }
 
 type MasterDataConfig struct {
