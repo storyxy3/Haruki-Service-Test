@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -9,6 +10,8 @@ import (
 	"Haruki-Service-API/internal/service"
 	"Haruki-Service-API/pkg/asset"
 )
+
+var ErrDrawingServiceUnavailable = errors.New("drawing service is not configured")
 
 // CardController 卡牌控制器
 type CardController struct {
@@ -19,6 +22,13 @@ type CardController struct {
 	assetDir      string // 资源文件根目录 (e.g. D:\pjskdata\data)
 	assets        *asset.AssetHelper
 	userData      *service.UserDataService
+}
+
+func (c *CardController) requireDrawingService() error {
+	if c.drawing == nil {
+		return ErrDrawingServiceUnavailable
+	}
+	return nil
 }
 
 // NewCardController 创建卡牌控制器
@@ -83,6 +93,10 @@ func (c *CardController) RenderCardDetail(query model.CardQuery) ([]byte, error)
 		return nil, err
 	}
 
+	if err := c.requireDrawingService(); err != nil {
+		return nil, err
+	}
+
 	// 2. 调用 DrawingAPI
 	imageData, err := c.drawing.GenerateCardDetail(drawingReq.Body)
 	if err != nil {
@@ -98,6 +112,10 @@ func (c *CardController) RenderCardListFromIDs(cardIDs []int, region string) ([]
 	listReq, err := b.BuildCardListRequest(cardIDs, region)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build list request: %w", err)
+	}
+
+	if err := c.requireDrawingService(); err != nil {
+		return nil, err
 	}
 
 	imageData, err := c.drawing.GenerateCardList(listReq)
@@ -230,6 +248,10 @@ func (c *CardController) RenderCardBox(queries []model.CardQuery) ([]byte, error
 		ShowBox:            false,
 		UseAfterTraining:   true,
 		CharacterIconPaths: iconPaths,
+	}
+
+	if err := c.requireDrawingService(); err != nil {
+		return nil, err
 	}
 
 	return c.drawing.GenerateCardBox(req)

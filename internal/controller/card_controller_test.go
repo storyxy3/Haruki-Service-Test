@@ -1,9 +1,10 @@
 package controller
 
 import (
+	"testing"
+
 	"Haruki-Service-API/internal/service"
 	"Haruki-Service-API/pkg/masterdata"
-	"testing"
 )
 
 func TestCardController_BuildCardListRequest(t *testing.T) {
@@ -25,12 +26,9 @@ func TestCardController_BuildCardListRequest(t *testing.T) {
 	// Test
 	cardIDs := []int{1, 2}
 	region := "jp"
-	req, err := ctrl.RenderCardListFromIDs(cardIDs, region)
-	if err != nil {
-		t.Fatalf("RenderCardListFromIDs failed: %v", err)
-	}
-
-	if len(req) == 0 {
-		t.Errorf("Expected render bytes length gt 0")
+	if _, err := ctrl.RenderCardListFromIDs(cardIDs, region); err == nil {
+		t.Fatalf("expected error when drawing service is nil")
+	} else if err != ErrDrawingServiceUnavailable {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
