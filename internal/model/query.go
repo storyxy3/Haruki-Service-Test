@@ -133,3 +133,18 @@ type DeckQuery struct {
 	FixedCards    []int  `json:"fixed_cards,omitempty"`
 	ExcludedCards []int  `json:"excluded_cards,omitempty"`
 }
+
+// HonorQuery 称号绘制查询
+type HonorQuery struct {
+	Region     string `json:"region"`
+	HonorID    int    `json:"honor_id"`
+	HonorLevel int    `json:"honor_level,omitempty"`
+	IsMain     bool   `json:"is_main,omitempty"`
+	Rank       int    `json:"rank,omitempty"` // 用于绘制排名数字，未来活动记录指令可能使用
+}
+
+// ProfileQuery 玩家名片查询
+type ProfileQuery struct {
+	UserID string `json:"user_id"`
+	Region string `json:"region"`
+}

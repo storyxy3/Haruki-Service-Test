@@ -36,6 +36,8 @@ type MasterDataService struct {
 	challengeRewards   []masterdata.ChallengeLiveHighScoreReward
 	resourceBoxes      []masterdata.ResourceBox
 	worldBlooms        []masterdata.WorldBloom
+	playerFrames       []masterdata.PlayerFrame
+	playerFrameGroups  []masterdata.PlayerFrameGroup
 
 	// 索引
 	cardByID          map[int]*masterdata.Card
@@ -52,18 +54,31 @@ type MasterDataService struct {
 	eventIDsByMusicID map[int][]int
 
 	// 关联索引
-	cardsByEventID        map[int][]int // eventID -> []cardID
-	cardsByGachaID        map[int][]int // gachaID -> []cardID
-	deckBonusesByEventID  map[int][]*masterdata.EventDeckBonus
-	gameCharUnitByCharID  map[int][]*masterdata.GameCharacterUnit
-	difficultiesByMusicID map[int][]*masterdata.MusicDifficulty
-	vocalsByMusicID       map[int][]*masterdata.MusicVocal
-	tagsByMusicID         map[int][]string // musicID -> []tagName
-	limitedTimesByMusicID map[int][]*masterdata.LimitedTimeMusic
-	challengeRewardsByCID map[int][]*masterdata.ChallengeLiveHighScoreReward
-	resourceBoxByID       map[int]*masterdata.ResourceBox
+	cardsByEventID         map[int][]int // eventID -> []cardID
+	cardsByGachaID         map[int][]int // gachaID -> []cardID
+	deckBonusesByEventID   map[int][]*masterdata.EventDeckBonus
+	gameCharUnitByCharID   map[int][]*masterdata.GameCharacterUnit
+	difficultiesByMusicID  map[int][]*masterdata.MusicDifficulty
+	vocalsByMusicID        map[int][]*masterdata.MusicVocal
+	tagsByMusicID          map[int][]string // musicID -> []tagName
+	limitedTimesByMusicID  map[int][]*masterdata.LimitedTimeMusic
+	challengeRewardsByCID  map[int][]*masterdata.ChallengeLiveHighScoreReward
+	resourceBoxByID        map[int]*masterdata.ResourceBox
 	resourceBoxesByPurpose map[string]map[int]*masterdata.ResourceBox
-	worldBloomsByEventID  map[int][]*masterdata.WorldBloom
+	worldBloomsByEventID   map[int][]*masterdata.WorldBloom
+	eventIDByHonorID       map[int]int // honorID -> eventID
+
+	// 称号数据缓存
+	honors      []masterdata.Honor
+	honorGroups []masterdata.HonorGroup
+	bondsHonors []masterdata.BondsHonor
+
+	// 称号索引
+	honorByID            map[int]*masterdata.Honor
+	honorGroupByID       map[int]*masterdata.HonorGroup
+	bondsHonorByID       map[int]*masterdata.BondsHonor
+	playerFrameByID      map[int]*masterdata.PlayerFrame
+	playerFrameGroupByID map[int]*masterdata.PlayerFrameGroup
 
 	// 角色昵称映射
 	charNicknames map[string]int
@@ -88,32 +103,37 @@ func (s *MasterDataService) GetRegion() string {
 func NewMasterDataService(dataDir string, region string) *MasterDataService {
 	nicknames := initCharacterNicknames()
 	return &MasterDataService{
-		dataDir:               dataDir,
-		region:                region,
-		cardByID:              make(map[int]*masterdata.Card),
-		charByID:              make(map[int]*masterdata.Character),
-		skillByID:             make(map[int]*masterdata.Skill),
-		musicByID:             make(map[int]*masterdata.Music),
-		eventByID:             make(map[int]*masterdata.Event),
-		gachaByID:             make(map[int]*masterdata.Gacha),
-		cardsByEventID:        make(map[int][]int),
-		cardsByGachaID:        make(map[int][]int),
-		eventCardByID:         make(map[int]*masterdata.EventCard),
-		costume3dByID:         make(map[int]*masterdata.Costume3d),
-		costume3dByCardID:     make(map[int][]int),
-		cardSupplyByID:        make(map[int]*masterdata.CardSupply),
-		gameCharUnitByID:      make(map[int]*masterdata.GameCharacterUnit),
-		eventIDsByMusicID:     make(map[int][]int),
-		deckBonusesByEventID:  make(map[int][]*masterdata.EventDeckBonus),
-		difficultiesByMusicID: make(map[int][]*masterdata.MusicDifficulty),
-		vocalsByMusicID:       make(map[int][]*masterdata.MusicVocal),
-		tagsByMusicID:         make(map[int][]string),
-		limitedTimesByMusicID: make(map[int][]*masterdata.LimitedTimeMusic),
-		challengeRewardsByCID: make(map[int][]*masterdata.ChallengeLiveHighScoreReward),
-		resourceBoxByID:       make(map[int]*masterdata.ResourceBox),
+		dataDir:                dataDir,
+		region:                 region,
+		cardByID:               make(map[int]*masterdata.Card),
+		charByID:               make(map[int]*masterdata.Character),
+		skillByID:              make(map[int]*masterdata.Skill),
+		musicByID:              make(map[int]*masterdata.Music),
+		eventByID:              make(map[int]*masterdata.Event),
+		gachaByID:              make(map[int]*masterdata.Gacha),
+		cardsByEventID:         make(map[int][]int),
+		cardsByGachaID:         make(map[int][]int),
+		eventCardByID:          make(map[int]*masterdata.EventCard),
+		costume3dByID:          make(map[int]*masterdata.Costume3d),
+		costume3dByCardID:      make(map[int][]int),
+		cardSupplyByID:         make(map[int]*masterdata.CardSupply),
+		gameCharUnitByID:       make(map[int]*masterdata.GameCharacterUnit),
+		eventIDsByMusicID:      make(map[int][]int),
+		deckBonusesByEventID:   make(map[int][]*masterdata.EventDeckBonus),
+		difficultiesByMusicID:  make(map[int][]*masterdata.MusicDifficulty),
+		vocalsByMusicID:        make(map[int][]*masterdata.MusicVocal),
+		tagsByMusicID:          make(map[int][]string),
+		limitedTimesByMusicID:  make(map[int][]*masterdata.LimitedTimeMusic),
+		challengeRewardsByCID:  make(map[int][]*masterdata.ChallengeLiveHighScoreReward),
+		resourceBoxByID:        make(map[int]*masterdata.ResourceBox),
 		resourceBoxesByPurpose: make(map[string]map[int]*masterdata.ResourceBox),
-		worldBloomsByEventID:  make(map[int][]*masterdata.WorldBloom),
-		charNicknames:         nicknames,
+		worldBloomsByEventID:   make(map[int][]*masterdata.WorldBloom),
+		honorByID:              make(map[int]*masterdata.Honor),
+		honorGroupByID:         make(map[int]*masterdata.HonorGroup),
+		bondsHonorByID:         make(map[int]*masterdata.BondsHonor),
+		playerFrameByID:        make(map[int]*masterdata.PlayerFrame),
+		playerFrameGroupByID:   make(map[int]*masterdata.PlayerFrameGroup),
+		charNicknames:          nicknames,
 	}
 }
 
@@ -179,6 +199,21 @@ func (s *MasterDataService) LoadAll() error {
 	if err := s.loadWorldBlooms(); err != nil {
 		return fmt.Errorf("failed to load world blooms: %w", err)
 	}
+	if err := s.loadHonors(); err != nil {
+		return fmt.Errorf("failed to load honors: %w", err)
+	}
+	if err := s.loadHonorGroups(); err != nil {
+		return fmt.Errorf("failed to load honor groups: %w", err)
+	}
+	if err := s.loadBondsHonors(); err != nil {
+		return fmt.Errorf("failed to load bonds honors: %w", err)
+	}
+	if err := s.loadPlayerFrames(); err != nil {
+		return fmt.Errorf("failed to load player frames: %w", err)
+	}
+	if err := s.loadPlayerFrameGroups(); err != nil {
+		return fmt.Errorf("failed to load player frame groups: %w", err)
+	}
 
 	// 构建索引
 	s.buildIndexes()
@@ -208,10 +243,9 @@ func (s *MasterDataService) buildIndexes() {
 		s.charByID[s.characters[i].ID] = &s.characters[i]
 	}
 
-	// 技能索引
-	for i := range s.skills {
-		s.skillByID[s.skills[i].ID] = &s.skills[i]
-	}
+	s.worldBloomsByEventID = make(map[int][]*masterdata.WorldBloom)
+	s.eventIDByHonorID = make(map[int]int)
+	s.honorByID = make(map[int]*masterdata.Honor)
 
 	// 音乐索引 & 排序
 	sort.Slice(s.musics, func(i, j int) bool {
@@ -227,7 +261,17 @@ func (s *MasterDataService) buildIndexes() {
 		return s.events[i].StartAt < s.events[j].StartAt
 	})
 	for i := range s.events {
-		s.eventByID[s.events[i].ID] = &s.events[i]
+		event := &s.events[i]
+		s.eventByID[event.ID] = event
+
+		// 构建荣誉到活动的映射
+		for _, rewardRange := range event.EventRankingRewardRanges {
+			for _, detail := range rewardRange.EventRankingRewardDetails {
+				if detail.ResourceType == "honor" {
+					s.eventIDByHonorID[detail.ResourceID] = event.ID
+				}
+			}
+		}
 	}
 
 	// 卡池索引 & 排序
@@ -308,6 +352,22 @@ func (s *MasterDataService) buildIndexes() {
 		wb := &s.worldBlooms[i]
 		s.worldBloomsByEventID[wb.EventID] = append(s.worldBloomsByEventID[wb.EventID], wb)
 	}
+
+	for i := range s.honors {
+		s.honorByID[s.honors[i].ID] = &s.honors[i]
+	}
+	for i := range s.honorGroups {
+		s.honorGroupByID[s.honorGroups[i].ID] = &s.honorGroups[i]
+	}
+	for i := range s.bondsHonors {
+		s.bondsHonorByID[s.bondsHonors[i].ID] = &s.bondsHonors[i]
+	}
+	for i := range s.playerFrames {
+		s.playerFrameByID[s.playerFrames[i].ID] = &s.playerFrames[i]
+	}
+	for i := range s.playerFrameGroups {
+		s.playerFrameGroupByID[s.playerFrameGroups[i].ID] = &s.playerFrameGroups[i]
+	}
 }
 
 // initCharacterNicknames 初始化角色昵称映射
@@ -345,4 +405,39 @@ func (s *MasterDataService) SetCards(cards []masterdata.Card) {
 // SetNicknames sets nicknames for testing
 func (s *MasterDataService) SetNicknames(nicks map[string]int) {
 	s.charNicknames = nicks
+}
+
+// GetCharacterFirstNickname 获取角色的 FirstName
+func (s *MasterDataService) GetCharacterFirstNickname(charID int) string {
+	char, err := s.GetCharacterByID(charID)
+	if err != nil || char == nil {
+		return ""
+	}
+	return char.FirstName
+}
+
+// loadPlayerFrames 加载头像框数据
+func (s *MasterDataService) loadPlayerFrames() error {
+	return s.loadJSON("playerFrames.json", &s.playerFrames)
+}
+
+// loadPlayerFrameGroups 加载头像框组数据
+func (s *MasterDataService) loadPlayerFrameGroups() error {
+	return s.loadJSON("playerFrameGroups.json", &s.playerFrameGroups)
+}
+
+// GetPlayerFrameByID 获取玩家头像框信息
+func (s *MasterDataService) GetPlayerFrameByID(id int) (*masterdata.PlayerFrame, error) {
+	if pf, ok := s.playerFrameByID[id]; ok {
+		return pf, nil
+	}
+	return nil, fmt.Errorf("player frame not found for id %d", id)
+}
+
+// GetPlayerFrameGroupByID 获取玩家头像框组信息
+func (s *MasterDataService) GetPlayerFrameGroupByID(id int) (*masterdata.PlayerFrameGroup, error) {
+	if pf, ok := s.playerFrameGroupByID[id]; ok {
+		return pf, nil
+	}
+	return nil, fmt.Errorf("player frame group not found for id %d", id)
 }

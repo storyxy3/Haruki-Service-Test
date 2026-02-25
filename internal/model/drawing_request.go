@@ -522,12 +522,12 @@ type PowerBonusDetailRequest struct {
 
 // AreaItemMaterial mirrors DrawingAPI material payload.
 type AreaItemMaterial struct {
-	MaterialID     int    `json:"material_id"`
-	MaterialIcon   string `json:"material_icon_path"`
-	Quantity       int    `json:"quantity"`
-	HaveQuantity   int    `json:"have_quantity"`
-	SumQuantity    int    `json:"sum_quantity"`
-	IsEnough       bool   `json:"is_enough"`
+	MaterialID   int    `json:"material_id"`
+	MaterialIcon string `json:"material_icon_path"`
+	Quantity     int    `json:"quantity"`
+	HaveQuantity int    `json:"have_quantity"`
+	SumQuantity  int    `json:"sum_quantity"`
+	IsEnough     bool   `json:"is_enough"`
 }
 
 // AreaItemLevel mirrors DrawingAPI area item level payload.
@@ -556,17 +556,17 @@ type AreaItemUpgradeMaterialsRequest struct {
 
 // BondInfo mirrors DrawingAPI bonds payload.
 type BondInfo struct {
-	CharaID1      int     `json:"chara_id1"`
-	CharaID2      int     `json:"chara_id2"`
+	CharaID1       int    `json:"chara_id1"`
+	CharaID2       int    `json:"chara_id2"`
 	CharaIconPath1 string `json:"chara_icon_path1"`
 	CharaIconPath2 string `json:"chara_icon_path2"`
-	CharaRank1    int     `json:"chara_rank1"`
-	CharaRank2    int     `json:"chara_rank2"`
-	BondLevel     int     `json:"bond_level"`
-	NeedExp       *int    `json:"need_exp,omitempty"`
-	HasBond       bool    `json:"has_bond"`
-	Color1        [3]int  `json:"color1"`
-	Color2        [3]int  `json:"color2"`
+	CharaRank1     int    `json:"chara_rank1"`
+	CharaRank2     int    `json:"chara_rank2"`
+	BondLevel      int    `json:"bond_level"`
+	NeedExp        *int   `json:"need_exp,omitempty"`
+	HasBond        bool   `json:"has_bond"`
+	Color1         [3]int `json:"color1"`
+	Color2         [3]int `json:"color2"`
 }
 
 // BondsRequest mirrors /education/bonds request.
@@ -590,4 +590,92 @@ type LeaderCountRequest struct {
 	Profile      DetailedProfileCardRequest `json:"profile"`
 	LeaderCounts []LeaderCountInfo          `json:"leader_counts"`
 	MaxPlayCount int                        `json:"max_play_count"`
+}
+
+// HonorRequest 称号绘制请求（匹配 DrawingAPI 的 `HonorRequest`）
+type HonorRequest struct {
+	HonorType               *string `json:"honor_type,omitempty"`
+	GroupType               *string `json:"group_type,omitempty"`
+	HonorRarity             *string `json:"honor_rarity,omitempty"`
+	HonorLevel              *int    `json:"honor_level,omitempty"`
+	FcOrApLevel             *string `json:"fc_or_ap_level,omitempty"`
+	IsEmpty                 bool    `json:"is_empty"`
+	IsMainHonor             bool    `json:"is_main_honor"`
+	HonorImgPath            *string `json:"honor_img_path,omitempty"`
+	RankImgPath             *string `json:"rank_img_path,omitempty"`
+	LvImgPath               *string `json:"lv_img_path,omitempty"`
+	Lv6ImgPath              *string `json:"lv6_img_path,omitempty"`
+	EmptyHonorPath          *string `json:"empty_honor_path,omitempty"`
+	ScrollImgPath           *string `json:"scroll_img_path,omitempty"`
+	WordImgPath             *string `json:"word_img_path,omitempty"`
+	CharaIconPath           *string `json:"chara_icon_path,omitempty"`
+	CharaIconPath2          *string `json:"chara_icon_path2,omitempty"`
+	CharaID                 *string `json:"chara_id,omitempty"`
+	CharaID2                *string `json:"chara_id2,omitempty"`
+	BondsBgPath             *string `json:"bonds_bg_path,omitempty"`
+	BondsBgPath2            *string `json:"bonds_bg_path2,omitempty"`
+	MaskImgPath             *string `json:"mask_img_path,omitempty"`
+	FrameImgPath            *string `json:"frame_img_path,omitempty"`
+	FrameDegreeLevelImgPath *string `json:"frame_degree_level_img_path,omitempty"`
+}
+
+// ProfileRequest 合成个人信息图片所需数据
+type ProfileRequest struct {
+	Profile              BasicProfile               `json:"profile"`
+	Rank                 int                        `json:"rank"`
+	TwitterID            string                     `json:"twitter_id"`
+	Word                 string                     `json:"word"`
+	PCards               []CardFullThumbnailRequest `json:"pcards"`
+	BgSettings           *ProfileBgSettings         `json:"bg_settings,omitempty"`
+	Honors               []HonorRequest             `json:"honors"`
+	MusicDifficultyCount []MusicClearCount          `json:"music_difficulty_count"`
+	CharacterRank        []CharacterRank            `json:"character_rank"`
+	SoloLive             *SoloLiveRank              `json:"solo_live,omitempty"`
+	UpdateTime           int64                      `json:"update_time,omitempty"`
+	LvRankBgPath         string                     `json:"lv_rank_bg_path"`
+	XIconPath            string                     `json:"x_icon_path"`
+	IconClearPath        string                     `json:"icon_clear_path"`
+	IconFcPath           string                     `json:"icon_fc_path"`
+	IconApPath           string                     `json:"icon_ap_path"`
+	CharaRankIconPathMap map[int]string             `json:"chara_rank_icon_path_map"`
+	FramePaths           *PlayerFramePaths          `json:"frame_paths,omitempty"`
+}
+
+// ProfileBgSettings 个人信息背景设置
+type ProfileBgSettings struct {
+	ImgPath  string `json:"img_path,omitempty"`
+	Blur     int    `json:"blur"`
+	Alpha    int    `json:"alpha"`
+	Vertical bool   `json:"vertical"`
+}
+
+// MusicClearCount 歌曲完成情况
+type MusicClearCount struct {
+	Difficulty string `json:"difficulty"` // easy, normal, hard, expert, master, append
+	Clear      int    `json:"clear"`
+	FC         int    `json:"fc"`
+	AP         int    `json:"ap"`
+}
+
+// CharacterRank 角色等级
+type CharacterRank struct {
+	CharacterID int `json:"character_id"`
+	Rank        int `json:"rank"`
+}
+
+// SoloLiveRank 挑战live等级
+type SoloLiveRank struct {
+	CharacterID int `json:"character_id"`
+	Score       int `json:"score"`
+	Rank        int `json:"rank"`
+}
+
+// PlayerFramePaths 玩家头像框各部件路径
+type PlayerFramePaths struct {
+	Base        string `json:"base"`
+	CenterTop   string `json:"centertop"`
+	LeftBottom  string `json:"leftbottom"`
+	LeftTop     string `json:"lefttop"`
+	RightBottom string `json:"rightbottom"`
+	RightTop    string `json:"righttop"`
 }

@@ -116,15 +116,16 @@ func (p *MusicParser) ParseChart(args string) (*MusicQueryInfo, error) {
 	}
 
 	// 如果解析出的是关键词，需要先搜索出 MusicID
-	if info.Type == QueryTypeMusicTitle {
+	switch info.Type {
+	case QueryTypeMusicTitle:
 		music, err := p.md.SearchMusic(info.Keyword)
 		if err != nil {
 			return nil, err
 		}
 		info.MusicID = music.ID
-	} else if info.Type == QueryTypeMusicID {
+	case QueryTypeMusicID:
 		info.MusicID = info.Value
-	} else {
+	default:
 		// Seq, Event, Ban logic needs resolving context or complex search
 		// For simplicity now, return error if not ID/Title
 		return nil, fmt.Errorf("chart search only supports ID or Title for now")

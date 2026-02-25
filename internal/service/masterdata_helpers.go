@@ -1,8 +1,8 @@
 package service
 
 import (
-	"fmt"
 	"Haruki-Service-API/pkg/masterdata"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -352,6 +352,22 @@ func (s *MasterDataService) GetWorldBloomChapters(eventID int) []*masterdata.Wor
 	return nil
 }
 
+// GetHonorByID 获取称号
+func (s *MasterDataService) GetHonorByID(id int) (*masterdata.Honor, error) {
+	if honor, ok := s.honorByID[id]; ok {
+		return honor, nil
+	}
+	return nil, fmt.Errorf("honor not found for id %d", id)
+}
+
+// GetHonorGroupByID 获取称号组
+func (s *MasterDataService) GetHonorGroupByID(id int) (*masterdata.HonorGroup, error) {
+	if group, ok := s.honorGroupByID[id]; ok {
+		return group, nil
+	}
+	return nil, fmt.Errorf("honor group not found for id %d", id)
+}
+
 // FilterEvents 根据条件筛选活动
 func (s *MasterDataService) FilterEvents(filter EventFilter) []*masterdata.Event {
 	var result []*masterdata.Event
@@ -466,6 +482,20 @@ func (s *MasterDataService) SearchMusic(query string) (*masterdata.Music, error)
 		return bestMatch, nil
 	}
 	return nil, fmt.Errorf("music not found: %s", query)
+}
+
+// GetBondsHonorByID 获取羁绊称号
+func (s *MasterDataService) GetBondsHonorByID(id int) (*masterdata.BondsHonor, error) {
+	if bonds, ok := s.bondsHonorByID[id]; ok {
+		return bonds, nil
+	}
+	return nil, fmt.Errorf("bonds honor not found for id %d", id)
+}
+
+// GetGameCharacterUnitByID 获取角色分组信息
+func (s *MasterDataService) GetGameCharacterUnitByID(id int) (*masterdata.GameCharacterUnit, bool) {
+	unit, ok := s.gameCharUnitByID[id]
+	return unit, ok
 }
 
 // GetMusicByID 根据 ID 获取音乐
@@ -601,4 +631,12 @@ func (s *MasterDataService) GetMusics() []*masterdata.Music {
 		result[i] = &s.musics[i]
 	}
 	return result
+}
+
+// GetEventIDByHonorID 根据称号 ID 获取关联的活动 ID
+func (s *MasterDataService) GetEventIDByHonorID(honorID int) int {
+	if eventID, ok := s.eventIDByHonorID[honorID]; ok {
+		return eventID
+	}
+	return 0
 }

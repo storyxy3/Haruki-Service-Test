@@ -38,7 +38,7 @@ func (b *CardBuilder) BuildCardDetailRequestBody(
 ) (*model.CardDetailRequest, error) {
 
 	// 1. 构建基础卡牌信息
-	cardInfo := b.buildCardBasic(card)
+	cardInfo := b.BuildCardBasic(card)
 
 	// 2. 获取活动信息
 	var eventInfo *model.CardEventInfo
@@ -97,7 +97,7 @@ func (b *CardBuilder) BuildCardDetailRequestBody(
 				// Set Banner Character Icon
 				// Only for Unit Events
 				if bannerCID, err := b.masterdata.GetEventBannerCharacterID(event.ID); err == nil {
-					eventCharaPath = b.buildCharacterIconPath(bannerCID, eventUnit)
+					eventCharaPath = b.BuildCharacterIconPath(bannerCID, eventUnit)
 					eventInfo.BannerCID = bannerCID
 				}
 			} else {
@@ -129,7 +129,7 @@ func (b *CardBuilder) BuildCardDetailRequestBody(
 		// 图片路径
 		CardImagesPath:      b.buildCardImagePaths(card),
 		CostumeImagesPath:   b.buildCostumeImagePaths(card),
-		CharacterIconPath:   b.buildCharacterIconPath(card.CharacterID, cardInfo.Unit),
+		CharacterIconPath:   b.BuildCharacterIconPath(card.CharacterID, cardInfo.Unit),
 		UnitLogoPath:        b.buildUnitLogoPath(cardInfo.Unit),
 		BackgroundImagePath: nil, // 可选
 
@@ -151,8 +151,8 @@ func (b *CardBuilder) BuildCardDetailRequestBody(
 	return req, nil
 }
 
-// buildCardBasic 构建通用基础卡牌信息
-func (b *CardBuilder) buildCardBasic(card *masterdata.Card) model.CardBasic {
+// BuildCardBasic 构建通用基础卡牌信息
+func (b *CardBuilder) BuildCardBasic(card *masterdata.Card) model.CardBasic {
 	cardInfo := model.CardBasic{
 		CardID:          card.ID,
 		CharacterID:     card.CharacterID,
@@ -220,7 +220,7 @@ func (b *CardBuilder) BuildCardListRequest(cardIDs []int, region string) (*model
 		// 基础卡牌信息
 		// 注意：DrawingAPI 已修改为会绘制 ThumbnailInfo 中的所有图片
 		// 因此不需要拆分特训前/后为两个对象，只需传一个包含完整 ThumbnailInfo 的对象即可
-		baseCard := b.buildCardBasic(card)
+		baseCard := b.BuildCardBasic(card)
 
 		// 适配 DrawingAPI 列表逻辑：将 "常驻" 转换为 "normal" 以避免框体标黄
 		if baseCard.SupplyType == "常驻" {
@@ -331,8 +331,8 @@ func (b *CardBuilder) buildCostumeImagePaths(card *masterdata.Card) []string {
 	return costumes
 }
 
-// buildCharacterIconPath 构建角色图标路径
-func (b *CardBuilder) buildCharacterIconPath(characterID int, unit string) string {
+// BuildCharacterIconPath 构建角色图标路径
+func (b *CardBuilder) BuildCharacterIconPath(characterID int, unit string) string {
 	// 1. 初音未来 (ID=21) 优先使用团体特定图标
 	if characterID == 21 && unit != "" && unit != "piapro" {
 		return asset.ResolveAssetPath(b.assets, b.assetDir, fmt.Sprintf("chara_icon/miku_%s.png", unit))

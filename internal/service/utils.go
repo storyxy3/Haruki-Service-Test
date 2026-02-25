@@ -25,34 +25,88 @@ type UserDataService struct {
 	baseProfile *model.DetailedProfileCardRequest
 	musicResult map[string]map[int]string
 	challenge   *ChallengeLiveData
+	rawData     *RawUserData // Keep raw for detailed mapping
 }
 
-// raw JSON structures (only keep fields we need)
-type rawUserData struct {
+// RawUserData JSON structures (only keep fields we need)
+type RawUserData struct {
 	Now            int64            `json:"now"`
-	UserGamedata   rawUserGamedata  `json:"userGamedata"`
-	UserProfile    rawUserProfile   `json:"userProfile"`
-	UserDecks      []rawUserDeck    `json:"userDecks"`
-	UserCards      []rawUserCard    `json:"userCards"`
-	UserMusicStats []rawMusicResult `json:"userMusicResults"`
+	UserGamedata   RawUserGamedata  `json:"userGamedata"`
+	UserProfile    RawUserProfile   `json:"userProfile"`
+	UserDecks      []RawUserDeck    `json:"userDecks"`
+	UserCards      []RawUserCard    `json:"userCards"`
+	UserMusicStats []RawMusicResult `json:"userMusicResults"`
 	// Education related snapshots
-	UserChallengeLiveSoloResults          []rawChallengeLiveResult `json:"userChallengeLiveSoloResults"`
-	UserChallengeLiveSoloStages           []rawChallengeLiveStage  `json:"userChallengeLiveSoloStages"`
-	UserChallengeLiveSoloHighScoreRewards []rawChallengeLiveReward `json:"userChallengeLiveSoloHighScoreRewards"`
+	UserChallengeLiveSoloResults          []RawChallengeLiveResult `json:"userChallengeLiveSoloResults"`
+	UserChallengeLiveSoloStages           []RawChallengeLiveStage  `json:"userChallengeLiveSoloStages"`
+	UserChallengeLiveSoloHighScoreRewards []RawChallengeLiveReward `json:"userChallengeLiveSoloHighScoreRewards"`
+	UserCharacters                        []RawUserCharacter       `json:"userCharacters"`
+	UserMusicClear                        []RawMusicClear          `json:"userMusicDifficultyClearCounts"`
+	UserHonors                            []RawUserHonor           `json:"userHonors"`
+	UserProfileHonors                     []RawUserProfileHonor    `json:"userProfileHonors"`
+	UserFrames                            []RawUserFrame           `json:"userPlayerFrames"`
+	UserEvents                            []RawUserEvent           `json:"userEvents"`
+	UserEventResults                      []RawUserEventResult     `json:"userEventResults"`
 }
 
-type rawUserGamedata struct {
+type RawUserCharacter struct {
+	CharacterID   int `json:"characterId"`
+	CharacterRank int `json:"characterRank"`
+}
+
+type RawMusicClear struct {
+	MusicDifficultyType string `json:"musicDifficultyType"`
+	LiveClear           int    `json:"liveClear"`
+	FullCombo           int    `json:"fullCombo"`
+	AllPerfect          int    `json:"allPerfect"`
+}
+
+type RawUserEvent struct {
+	EventID    int `json:"eventId"`
+	EventPoint int `json:"eventPoint"`
+}
+
+type RawUserEventResult struct {
+	EventID int `json:"eventId"`
+	Rank    int `json:"rank"`
+}
+
+type RawUserHonor struct {
+	Seq           int    `json:"seq"`
+	HonorID       int    `json:"honorId"`
+	HonorLevel    int    `json:"level"`
+	ProfilePlayer bool   `json:"profilePlayer"`
+	HonorRarity   string `json:"honorRarity"`
+}
+
+type RawUserFrame struct {
+	PlayerFrameID           int    `json:"playerFrameId"`
+	PlayerFrameAttachStatus string `json:"playerFrameAttachStatus"`
+}
+
+type RawUserProfileHonor struct {
+	Seq              int    `json:"seq"`
+	ProfileHonorType string `json:"profileHonorType"` // "normal" or "bonds"
+	HonorID          int    `json:"honorId"`          // if normal
+	HonorLevel       int    `json:"honorLevel"`       // if normal
+	HonorId2         int    `json:"honorId2"`         // if bonds
+	BondsHonorWordId int    `json:"bondsHonorWordId"` // if bonds
+}
+
+type RawUserGamedata struct {
 	UserID int64  `json:"userId"`
 	Name   string `json:"name"`
 	Deck   int    `json:"deck"`
+	Rank   int    `json:"rank"`
 }
 
-type rawUserProfile struct {
+type RawUserProfile struct {
 	ProfileImageType string `json:"profileImageType"`
 	Word             string `json:"word"`
+	TwitterID        string `json:"twitterId"`
 }
 
-type rawUserDeck struct {
+type RawUserDeck struct {
 	DeckID    int `json:"deckId"`
 	Leader    int `json:"leader"`
 	SubLeader int `json:"subLeader"`
@@ -63,13 +117,15 @@ type rawUserDeck struct {
 	Member5   int `json:"member5"`
 }
 
-type rawUserCard struct {
+type RawUserCard struct {
 	CardID                int    `json:"cardId"`
+	Level                 int    `json:"level"`
+	MasterRank            int    `json:"masterRank"`
 	SpecialTrainingStatus string `json:"specialTrainingStatus"`
 	DefaultImage          string `json:"defaultImage"`
 }
 
-type rawMusicResult struct {
+type RawMusicResult struct {
 	MusicID             int    `json:"musicId"`
 	MusicDifficulty     string `json:"musicDifficulty"`
 	MusicDifficultyType string `json:"musicDifficultyType"`
@@ -78,17 +134,17 @@ type rawMusicResult struct {
 	FullPerfectFlg      bool   `json:"fullPerfectFlg"`
 }
 
-type rawChallengeLiveResult struct {
+type RawChallengeLiveResult struct {
 	CharacterID int `json:"characterId"`
 	HighScore   int `json:"highScore"`
 }
 
-type rawChallengeLiveStage struct {
+type RawChallengeLiveStage struct {
 	CharacterID int `json:"characterId"`
 	Rank        int `json:"rank"`
 }
 
-type rawChallengeLiveReward struct {
+type RawChallengeLiveReward struct {
 	ChallengeLiveHighScoreRewardID int `json:"challengeLiveHighScoreRewardId"`
 	CharacterID                    int `json:"characterId"`
 }
@@ -102,7 +158,7 @@ func NewUserDataService(path string, assetDir string, masterdata *MasterDataServ
 	if err != nil {
 		return nil, err
 	}
-	var raw rawUserData
+	var raw RawUserData
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, err
 	}
@@ -113,7 +169,8 @@ func NewUserDataService(path string, assetDir string, masterdata *MasterDataServ
 	activeDeck := findActiveDeck(raw.UserDecks, raw.UserGamedata.Deck)
 	leaderCardID := activeDeck.Leader
 	leaderCard := findUserCard(raw.UserCards, leaderCardID)
-	leaderPath := resolveCardPortraitPath(assetDir, leaderCardID, isAfterTraining(leaderCard), masterdata)
+	isAfter := IsAfterTraining(leaderCard)
+	leaderPath := resolveCardPortraitPath(assetDir, leaderCardID, isAfter, masterdata)
 	if leaderPath == "" {
 		fallback := filepath.Join(assetDir, "user", "leader.png")
 		if _, err := os.Stat(fallback); err == nil {
@@ -128,7 +185,7 @@ func NewUserDataService(path string, assetDir string, masterdata *MasterDataServ
 		Source:          "suite_dump",
 		UpdateTime:      raw.Now,
 		Mode:            strings.TrimSpace(raw.UserProfile.ProfileImageType),
-		IsHideUID:       false,
+		IsHideUID:       true,
 		LeaderImagePath: leaderPath,
 		HasFrame:        false,
 		UserCards:       buildUserCardEntries(activeDeck),
@@ -144,7 +201,16 @@ func NewUserDataService(path string, assetDir string, masterdata *MasterDataServ
 			Stages:  convertChallengeStages(raw.UserChallengeLiveSoloStages),
 			Rewards: convertChallengeRewards(raw.UserChallengeLiveSoloHighScoreRewards),
 		},
+		rawData: &raw,
 	}, nil
+}
+
+// GetRawData returns the raw user data for deeper inspection
+func (s *UserDataService) GetRawData() *RawUserData {
+	if s == nil {
+		return nil
+	}
+	return s.rawData
 }
 
 // DetailedProfile returns a copy of the profile with region overridden.
@@ -221,7 +287,7 @@ func (s *UserDataService) GetMusicResult(musicID int, diff string) string {
 	return ""
 }
 
-func buildUserCardEntries(deck rawUserDeck) []map[string]interface{} {
+func buildUserCardEntries(deck RawUserDeck) []map[string]interface{} {
 	ids := []int{deck.Leader, deck.SubLeader, deck.Member1, deck.Member2, deck.Member3, deck.Member4, deck.Member5}
 	seen := make(map[int]struct{})
 	var result []map[string]interface{}
@@ -238,7 +304,7 @@ func buildUserCardEntries(deck rawUserDeck) []map[string]interface{} {
 	return result
 }
 
-func findActiveDeck(decks []rawUserDeck, activeID int) rawUserDeck {
+func findActiveDeck(decks []RawUserDeck, activeID int) RawUserDeck {
 	for _, deck := range decks {
 		if deck.DeckID == activeID {
 			return deck
@@ -247,7 +313,7 @@ func findActiveDeck(decks []rawUserDeck, activeID int) rawUserDeck {
 	if len(decks) > 0 {
 		return decks[0]
 	}
-	return rawUserDeck{}
+	return RawUserDeck{}
 }
 
 func resolveCardPortraitPath(assetDir string, cardID int, afterTraining bool, masterdata *MasterDataService) string {
@@ -292,7 +358,7 @@ func relativeAssetPath(assetDir string, absolutePath string) string {
 	return normPath
 }
 
-func buildMusicResultMap(rawResults []rawMusicResult) map[string]map[int]string {
+func buildMusicResultMap(rawResults []RawMusicResult) map[string]map[int]string {
 	result := make(map[string]map[int]string)
 	for _, item := range rawResults {
 		diff := strings.ToLower(strings.TrimSpace(item.MusicDifficultyType))
@@ -314,7 +380,7 @@ func buildMusicResultMap(rawResults []rawMusicResult) map[string]map[int]string 
 	return result
 }
 
-func findUserCard(cards []rawUserCard, cardID int) *rawUserCard {
+func findUserCard(cards []RawUserCard, cardID int) *RawUserCard {
 	for i := range cards {
 		if cards[i].CardID == cardID {
 			return &cards[i]
@@ -323,14 +389,14 @@ func findUserCard(cards []rawUserCard, cardID int) *rawUserCard {
 	return nil
 }
 
-func isAfterTraining(card *rawUserCard) bool {
+func IsAfterTraining(card *RawUserCard) bool {
 	if card == nil {
 		return false
 	}
 	return card.DefaultImage == "special_training" && strings.EqualFold(card.SpecialTrainingStatus, "done")
 }
 
-func normalizePlayResult(item rawMusicResult) string {
+func normalizePlayResult(item RawMusicResult) string {
 	switch {
 	case item.FullPerfectFlg:
 		return "ap"
@@ -364,7 +430,7 @@ func (s *UserDataService) ChallengeLive() *ChallengeLiveData {
 	return s.challenge
 }
 
-func convertChallengeResults(src []rawChallengeLiveResult) []ChallengeLiveResult {
+func convertChallengeResults(src []RawChallengeLiveResult) []ChallengeLiveResult {
 	out := make([]ChallengeLiveResult, 0, len(src))
 	for _, item := range src {
 		out = append(out, ChallengeLiveResult{
@@ -375,7 +441,7 @@ func convertChallengeResults(src []rawChallengeLiveResult) []ChallengeLiveResult
 	return out
 }
 
-func convertChallengeStages(src []rawChallengeLiveStage) []ChallengeLiveStage {
+func convertChallengeStages(src []RawChallengeLiveStage) []ChallengeLiveStage {
 	out := make([]ChallengeLiveStage, 0, len(src))
 	for _, item := range src {
 		out = append(out, ChallengeLiveStage{
@@ -386,7 +452,7 @@ func convertChallengeStages(src []rawChallengeLiveStage) []ChallengeLiveStage {
 	return out
 }
 
-func convertChallengeRewards(src []rawChallengeLiveReward) []ChallengeLiveReward {
+func convertChallengeRewards(src []RawChallengeLiveReward) []ChallengeLiveReward {
 	out := make([]ChallengeLiveReward, 0, len(src))
 	for _, item := range src {
 		out = append(out, ChallengeLiveReward{
@@ -420,4 +486,20 @@ type ChallengeLiveStage struct {
 type ChallengeLiveReward struct {
 	RewardID    int
 	CharacterID int
+}
+
+// GetUserSuite returns the base profile card request
+func (s *UserDataService) GetUserSuite() *model.DetailedProfileCardRequest {
+	if s == nil {
+		return nil
+	}
+	return s.baseProfile
+}
+
+// GetUserCards returns the user's cards
+func (s *UserDataService) GetUserCards() []map[string]interface{} {
+	if s == nil || s.baseProfile == nil {
+		return nil
+	}
+	return s.baseProfile.UserCards
 }

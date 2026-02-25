@@ -78,14 +78,30 @@ type Character struct {
 
 // Event 活动数据
 type Event struct {
-	ID              int    `json:"id"`
-	EventType       string `json:"eventType"`
-	Name            string `json:"name"`
-	AssetBundleName string `json:"assetbundleName"`
-	StartAt         int64  `json:"startAt"`
-	AggregateAt     int64  `json:"aggregateAt"`
-	ClosedAt        int64  `json:"closedAt"`
-	// 添加其他需要的字段
+	ID                       int                       `json:"id"`
+	EventType                string                    `json:"eventType"`
+	Name                     string                    `json:"name"`
+	AssetBundleName          string                    `json:"assetbundleName"`
+	StartAt                  int64                     `json:"startAt"`
+	AggregateAt              int64                     `json:"aggregateAt"`
+	ClosedAt                 int64                     `json:"closedAt"`
+	EventRankingRewardRanges []EventRankingRewardRange `json:"eventRankingRewardRanges"`
+}
+
+type EventRankingRewardRange struct {
+	FromRank int `json:"fromRank"`
+	ToRank   int `json:"toRank"`
+	// 我们只需要获取 honorId
+	EventRankingRewardDetails []EventRankingRewardDetail `json:"eventRankingRewardDetails"`
+}
+
+type EventRankingRewardDetail struct {
+	ID                 int    `json:"id"`
+	ResourceType       string `json:"resourceType"` // "honor"
+	ResourceID         int    `json:"resourceId"`   // honorId
+	ResourceQuantity   int    `json:"resourceQuantity"`
+	ResourceLevel      int    `json:"resourceLevel"`
+	EventRankingReward int    `json:"eventRankingRewardId"`
 }
 
 // Gacha 卡池数据
@@ -233,11 +249,11 @@ type ResourceBoxDetail struct {
 
 // ResourceBox describes a reward bundle.
 type ResourceBox struct {
-	ResourceBoxPurpose string               `json:"resourceBoxPurpose"`
-	ID                 int                  `json:"id"`
-	ResourceBoxType    string               `json:"resourceBoxType"`
-	Description        string               `json:"description"`
-	Details            []ResourceBoxDetail  `json:"details"`
+	ResourceBoxPurpose string              `json:"resourceBoxPurpose"`
+	ID                 int                 `json:"id"`
+	ResourceBoxType    string              `json:"resourceBoxType"`
+	Description        string              `json:"description"`
+	Details            []ResourceBoxDetail `json:"details"`
 }
 
 // EventCard 活动卡牌关联
@@ -304,4 +320,62 @@ type WorldBloom struct {
 	ChapterEndAt    int64  `json:"chapterEndAt"`
 	IsSupplemental  bool   `json:"isSupplemental"`
 	ChapterType     string `json:"worldBloomChapterType"`
+}
+
+// Honor 称号数据
+type Honor struct {
+	ID              int          `json:"id"`
+	GroupID         int          `json:"groupId"`
+	HonorType       string       `json:"honorType"`
+	HonorRarity     string       `json:"honorRarity"`
+	Name            string       `json:"name"`
+	Description     string       `json:"description"`
+	AssetbundleName string       `json:"assetbundleName"`
+	Levels          []HonorLevel `json:"levels"`
+}
+
+// HonorLevel 称号等级信息
+type HonorLevel struct {
+	Level           int    `json:"level"`
+	HonorRarity     string `json:"honorRarity"`
+	Description     string `json:"description"`
+	AssetbundleName string `json:"assetbundleName"`
+}
+
+// HonorGroup 称号组
+type HonorGroup struct {
+	ID                        int     `json:"id"`
+	HonorType                 string  `json:"honorType"`
+	Name                      string  `json:"name"`
+	Description               string  `json:"description"`
+	BackgroundAssetbundleName *string `json:"backgroundAssetbundleName"`
+	FrameName                 *string `json:"frameName"`
+}
+
+// BondsHonor 羁绊称号
+type BondsHonor struct {
+	ID                   int    `json:"id"`
+	GameCharacterUnitId1 int    `json:"gameCharacterUnitId1"`
+	GameCharacterUnitId2 int    `json:"gameCharacterUnitId2"`
+	HonorRarity          string `json:"honorRarity"`
+	Name                 string `json:"name"`
+	Description          string `json:"description"`
+	BondsGroupId         int    `json:"bondsGroupId"`
+}
+
+// PlayerFrame 玩家头像框
+type PlayerFrame struct {
+	ID                 int    `json:"id"`
+	Seq                int    `json:"seq"`
+	PlayerFrameGroupID int    `json:"playerFrameGroupId"`
+	Description        string `json:"description"`
+	GameCharacterID    int    `json:"gameCharacterId"`
+}
+
+// PlayerFrameGroup 玩家头像框组
+type PlayerFrameGroup struct {
+	ID              int    `json:"id"`
+	Seq             int    `json:"seq"`
+	Name            string `json:"name"`
+	AssetbundleName string `json:"assetbundleName"`
 }

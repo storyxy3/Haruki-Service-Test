@@ -2,6 +2,8 @@ package controller
 
 import (
 	"fmt"
+	"strconv"
+
 	"Haruki-Service-API/internal/builder"
 	"Haruki-Service-API/internal/model"
 	"Haruki-Service-API/internal/service"
@@ -135,7 +137,100 @@ func (c *CardController) RenderCardList(queries []model.CardQuery) ([]byte, erro
 }
 
 // RenderCardBox 渲染卡牌一览（模式 2）
-// TODO: Implement CardBox logic properly
 func (c *CardController) RenderCardBox(queries []model.CardQuery) ([]byte, error) {
-	return nil, fmt.Errorf("not implemented")
+	if len(queries) == 0 {
+		return nil, fmt.Errorf("no card query provided")
+	}
+
+	region := queries[0].Region
+	if region == "" {
+		region = c.masterdata.GetRegion()
+	}
+
+	cards, err := c.searchService.SearchList(queries[0].Query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search card box: %w", err)
+	}
+
+	var userCards []model.UserCard
+	iconPaths := make(map[string]string)
+	b := builder.NewCardBuilder(c.masterdata, c.assets, c.assetDir, c.searchService, c.userData)
+	// 获取用户卡牌映射以提高查找效率
+	userCardMap := make(map[int]service.RawUserCard)
+	if c.userData != nil && c.userData.GetRawData() != nil {
+		for _, uc := range c.userData.GetRawData().UserCards {
+			userCardMap[uc.CardID] = uc
+		}
+	}
+
+	for _, card := range cards {
+		cardBasic := b.BuildCardBasic(card)
+
+		// 默认状态
+		hasCard := false
+
+		// 如果有用户数据，则进行匹配
+		if uc, exists := userCardMap[card.ID]; exists {
+			hasCard = true
+
+			// 根据用户数据决定是否展示特训后卡面
+			if uc.SpecialTrainingStatus == "done" || uc.DefaultImage == "special_training" {
+				cardBasic.IsAfterTraining = true
+			} else {
+				cardBasic.IsAfterTraining = false
+			}
+
+			// 设置实际等级和特训等级
+			for i := range cardBasic.ThumbnailInfo {
+				cardBasic.ThumbnailInfo[i].IsPcard = true
+
+				level := uc.Level
+				cardBasic.ThumbnailInfo[i].Level = &level
+
+				rank := uc.MasterRank
+				cardBasic.ThumbnailInfo[i].TrainRank = &rank
+
+				// 设置特训等级图片路径
+				rankPath := asset.ResolveAssetPath(c.assets, c.assetDir, fmt.Sprintf("card/train_rank_%d.png", rank))
+				cardBasic.ThumbnailInfo[i].TrainRankImgPath = &rankPath
+			}
+		} else {
+			// 如果没有拥有此卡，且没有全局用户上下文，则不显示 pcard (即不显示等级条)
+			for i := range cardBasic.ThumbnailInfo {
+				cardBasic.ThumbnailInfo[i].IsPcard = false
+			}
+
+			// 查全图时，3/4星默认显示特训后
+			if len(cardBasic.ThumbnailInfo) > 1 {
+				cardBasic.IsAfterTraining = true
+			}
+		}
+
+		userCards = append(userCards, model.UserCard{
+			Card:    cardBasic,
+			HasCard: hasCard,
+		})
+
+		// Setup Icon Paths Map for the Drawing API Backend (CardBoxRequest)
+		charStr := strconv.Itoa(card.CharacterID)
+		if _, exists := iconPaths[charStr]; !exists && card.CharacterID > 0 {
+			iconPaths[charStr] = b.BuildCharacterIconPath(card.CharacterID, cardBasic.Unit)
+		}
+	}
+
+	// 获取用户信息用于页眉
+	pb := builder.NewProfileBuilder(c.masterdata, c.assets, c.assetDir, c.userData)
+	userInfo, _ := pb.BuildDetailedProfileCardRequest(region)
+
+	req := model.CardBoxRequest{
+		Cards:              userCards,
+		Region:             region,
+		UserInfo:           userInfo,
+		ShowID:             false, // 隐藏按钮 ID
+		ShowBox:            false,
+		UseAfterTraining:   true,
+		CharacterIconPaths: iconPaths,
+	}
+
+	return c.drawing.GenerateCardBox(req)
 }

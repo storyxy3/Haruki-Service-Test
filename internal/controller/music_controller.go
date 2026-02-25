@@ -11,7 +11,6 @@ import (
 	"Haruki-Service-API/internal/model"
 	"Haruki-Service-API/internal/service"
 	"Haruki-Service-API/pkg/asset"
-	"Haruki-Service-API/pkg/masterdata"
 )
 
 // MusicController 音乐控制器
@@ -586,11 +585,6 @@ func ensureDetailComboRewards(combo map[string][]model.MusicComboReward) map[str
 		}
 	}
 	return combo
-}
-
-func (c *MusicController) buildChartArtist(music *masterdata.Music) string {
-	b := builder.NewMusicBuilder(c.masterdata, c.assets, c.assetDir, c.userData)
-	return b.BuildChartArtist(music)
 }
 
 func (c *MusicController) buildProfileCard(region string) *model.ProfileCardRequest {

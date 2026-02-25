@@ -40,7 +40,7 @@ func (b *MusicBuilder) BuildMusicDetailRequest(music *masterdata.Music, region s
 		Arranger:     music.Arranger,
 		Categories:   b.buildCategories(music.ID),
 		ReleaseAt:    int(music.PublishedAt), // Go int vs Python int (timestamp)
-		IsFullLength: false,                  // TODO: check if full length exists in data
+		IsFullLength: false,                  // The masterdata does not contain full_length info currently
 	}
 
 	// 2. 难度信息 DifficultyInfo

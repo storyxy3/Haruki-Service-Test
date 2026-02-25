@@ -60,7 +60,9 @@ func main() {
 	cardController := controller.NewCardController(masterdata, drawing, cardSearchService, cfg.DrawingAPI.BaseURL, assetHelper, userData)
 	musicController := controller.NewMusicController(masterdata, drawing, cfg.DrawingAPI.BaseURL, assetHelper, userData)
 	gachaController := controller.NewGachaController(masterdata, drawing, cfg.DrawingAPI.BaseURL, assetHelper)
+	honorController := controller.NewHonorController(masterdata, drawing, assetHelper)
 	eventController := controller.NewEventController(masterdata, drawing, cfg.DrawingAPI.BaseURL, assetHelper)
+	profileController := controller.NewProfileController(masterdata, drawing, assetHelper)
 
 	mux := http.NewServeMux()
 
@@ -92,6 +94,11 @@ func main() {
 	mux.HandleFunc("/api/event/list/render", handleEventListRender(eventController))
 	mux.HandleFunc("/api/event/record/build", handleEventRecordBuild(eventController))
 	mux.HandleFunc("/api/event/record/render", handleEventRecordRender(eventController))
+
+	mux.HandleFunc("/api/honor/build", handleHonorBuild(honorController))
+	mux.HandleFunc("/api/honor/render", handleHonorRender(honorController))
+
+	mux.HandleFunc("/api/profile/render", handleProfileRender(profileController, userData))
 
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	slog.Info("Server starting", "address", addr)
@@ -735,6 +742,89 @@ func handleEventRecordRender(ctrl *controller.EventController) http.HandlerFunc 
 
 		imageData, err := ctrl.RenderEventRecord(req)
 		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to render image: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "image/png")
+		w.Write(imageData)
+	}
+}
+
+func handleHonorBuild(ctrl *controller.HonorController) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var query model.HonorQuery
+		if err := json.NewDecoder(r.Body).Decode(&query); err != nil {
+			http.Error(w, fmt.Sprintf("Invalid request: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		req, err := ctrl.BuildHonorRequest(query)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to build request: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(req)
+	}
+}
+
+func handleHonorRender(ctrl *controller.HonorController) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req model.HonorRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, fmt.Sprintf("Invalid request: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		imageData, err := ctrl.RenderHonorImage(req)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to render image: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "image/png")
+		w.Write(imageData)
+	}
+}
+
+func handleProfileRender(ctrl *controller.ProfileController, userData *service.UserDataService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var query model.ProfileQuery
+		if err := json.NewDecoder(r.Body).Decode(&query); err != nil {
+			http.Error(w, fmt.Sprintf("Invalid request: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		// 如果没有传入 UserID，则尝试从 query 获取，如果还是没有，则报错
+		if query.UserID == "" {
+			http.Error(w, "UserID is required", http.StatusBadRequest)
+			return
+		}
+
+		if query.Region == "" {
+			query.Region = "jp"
+		}
+
+		imageData, err := ctrl.RenderProfile(query.UserID, query.Region, userData)
+		if err != nil {
+			slog.Error("Failed to render profile", "error", err, "userID", query.UserID)
 			http.Error(w, fmt.Sprintf("Failed to render image: %v", err), http.StatusInternalServerError)
 			return
 		}

@@ -25,9 +25,12 @@ type cliEnv struct {
 	gachaController     *controller.GachaController
 	eventController     *controller.EventController
 	educationController *controller.EducationController
+	honorController     *controller.HonorController
+	profileController   *controller.ProfileController
 	cardParser          *service.CardParser
 	eventParser         *service.EventParser
 	eventSearch         *service.EventSearchService
+	userData            *service.UserDataService
 }
 
 type scenario struct {
@@ -36,11 +39,12 @@ type scenario struct {
 	Cmd         string `json:"cmd"`
 	Description string `json:"description"`
 }
+
 var globalOutputDir string
 
 func main() {
-	modePtr := flag.String("mode", "detail", "Mode: detail/card-detail, card-list, music (detail), music-brief, music-list, music-progress, music-chart, music-reward-detail, music-reward-basic, gacha-list, gacha-detail, event-detail, event-list, event-record, education-* (challenge/power/area/bonds/leader)")
-	cmdPtr := flag.String("cmd", "", "Command payload, e.g. '/鏌ュ崱 190'")
+	modePtr := flag.String("mode", "detail", "Mode: detail/card-detail, card-list, music (detail), music-brief, music-list, music-progress, music-chart, music-reward-detail, music-reward-basic, gacha-list, gacha-detail, event-detail, event-list, event-record, education-* (challenge/power/area/bonds/leader), honor, profile")
+	cmdPtr := flag.String("cmd", "", "Command payload, e.g. '/查卡 190'")
 	scenarioPtr := flag.String("scenario", "", "Run multiple commands; use 'all' for built-in regression or provide a JSON file path")
 	flag.Parse()
 
@@ -89,11 +93,14 @@ func main() {
 		cardController:      controller.NewCardController(masterdata, drawing, cardSearchService, cfg.DrawingAPI.BaseURL, assetHelper, userData),
 		musicController:     controller.NewMusicController(masterdata, drawing, cfg.DrawingAPI.BaseURL, assetHelper, userData),
 		gachaController:     controller.NewGachaController(masterdata, drawing, cfg.DrawingAPI.BaseURL, assetHelper),
+		honorController:     controller.NewHonorController(masterdata, drawing, assetHelper),
+		profileController:   controller.NewProfileController(masterdata, drawing, assetHelper),
 		cardParser:          cardParser,
 		eventController:     controller.NewEventController(masterdata, drawing, cfg.DrawingAPI.BaseURL, assetHelper),
 		educationController: controller.NewEducationController(masterdata, drawing, assetHelper, userData),
 		eventParser:         eventParser,
 		eventSearch:         eventSearch,
+		userData:            userData,
 	}
 
 	if *scenarioPtr != "" {
@@ -146,6 +153,7 @@ func defaultScenarios(env *cliEnv) ([]scenario, error) {
 	}{
 		{"card-detail", "card-detail", "卡牌详情 (默认卡ID)"},
 		{"card-list", "card-list", "卡牌列表查询"},
+		{"card-box", "card-box", "卡牌盒子一览"},
 		{"music-detail", "music", "单曲详情"},
 		{"music-brief", "music-brief", "曲目概览"},
 		{"music-list", "music-list", "谱面等级列表"},
@@ -196,6 +204,12 @@ func (env *cliEnv) runMode(mode string, cmd string) error {
 			return testCardListHardcoded(env.cardController)
 		}
 		return testCardListDynamic(env.cardController, cmd)
+	case "box", "card-box":
+		payload, err := env.ensureCommand("card-box", cmd)
+		if err != nil {
+			return err
+		}
+		return testCardBox(env.cardController, payload)
 	case "music", "music-detail":
 		payload, err := env.ensureCommand("music", cmd)
 		if err != nil {
@@ -287,6 +301,13 @@ func (env *cliEnv) runMode(mode string, cmd string) error {
 			return fmt.Errorf("education-leader 模式需要 -cmd 指向 JSON 文件")
 		}
 		return testEducationLeaderCount(env.educationController, cmd)
+	case "honor":
+		if strings.TrimSpace(cmd) == "" {
+			return fmt.Errorf("honor 模式需要 -cmd 指向 JSON 文件")
+		}
+		return testHonorGenerate(env.honorController, cmd)
+	case "profile":
+		return testProfileGenerate(env.profileController, env.userData, cmd)
 	default:
 		return fmt.Errorf("unknown mode: %s", mode)
 	}
@@ -303,6 +324,8 @@ func (env *cliEnv) defaultCommand(mode string) (string, error) {
 	switch strings.ToLower(mode) {
 	case "card-detail":
 		return "/查卡 190", nil
+	case "card-box":
+		return "/查卡 mnr", nil
 	case "music", "music-detail":
 		return "/查曲 1", nil
 	case "music-brief":
@@ -327,6 +350,8 @@ func (env *cliEnv) defaultCommand(mode string) (string, error) {
 		return "/events wl", nil
 	case "education-challenge":
 		return "/挑战信息", nil
+	case "profile":
+		return "1", nil // 默认用户 ID
 	default:
 		return "", fmt.Errorf("mode %s requires -cmd", mode)
 	}
@@ -652,6 +677,41 @@ func testEducationLeaderCount(ctrl *controller.EducationController, cmd string) 
 	return saveImage("education_leader_count", 0, imageData)
 }
 
+func testHonorGenerate(ctrl *controller.HonorController, cmd string) error {
+	raw := strings.TrimSpace(cmd)
+	var query model.HonorQuery
+	if err := loadQueryFromFile(raw, &query); err != nil {
+		return err
+	}
+	req, err := ctrl.BuildHonorRequest(query)
+	if err != nil {
+		return fmt.Errorf("build honor request failed: %w", err)
+	}
+	start := time.Now()
+	imageData, err := ctrl.RenderHonorImage(req)
+	if err != nil {
+		return fmt.Errorf("render honor failed: %w", err)
+	}
+	fmt.Printf("Render honor success! Took %v. Image size: %d bytes\n", time.Since(start), len(imageData))
+	return saveImage("honor", 0, imageData)
+}
+
+func testProfileGenerate(ctrl *controller.ProfileController, userData *service.UserDataService, cmd string) error {
+	userID := strings.TrimSpace(cmd)
+	if userID == "" {
+		userID = "1"
+	}
+	region := "jp" // 默认
+
+	start := time.Now()
+	imageData, err := ctrl.RenderProfile(userID, region, userData)
+	if err != nil {
+		return fmt.Errorf("render profile failed: %w", err)
+	}
+	fmt.Printf("Render profile success! Took %v. Image size: %d bytes\n", time.Since(start), len(imageData))
+	return saveImage("profile", 0, imageData)
+}
+
 func testCardListHardcoded(ctrl *controller.CardController) error {
 	ids := []int{190, 1252, 1309, 17}
 	region := "jp"
@@ -675,6 +735,19 @@ func testCardListDynamic(ctrl *controller.CardController, cmd string) error {
 	}
 	fmt.Printf("Render list success! Took %v. Image size: %d bytes\n", time.Since(start), len(imageData))
 	return saveImage("card_list_search", 0, imageData)
+}
+
+func testCardBox(ctrl *controller.CardController, cmd string) error {
+	raw := preprocessCommand(cmd, "/查卡", "查卡", "查牌", "查卡片", "查询卡片")
+	queries := []model.CardQuery{{Query: raw, UserID: "test_user"}}
+
+	start := time.Now()
+	imageData, err := ctrl.RenderCardBox(queries)
+	if err != nil {
+		return fmt.Errorf("render card box failed: %w", err)
+	}
+	fmt.Printf("Render card box success! Took %v. Image size: %d bytes\n", time.Since(start), len(imageData))
+	return saveImage("card_box", 0, imageData)
 }
 
 func testCardDetail(ctrl *controller.CardController, parser *service.CardParser, cmd string) error {

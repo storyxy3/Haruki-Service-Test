@@ -94,3 +94,18 @@ func (s *MasterDataService) loadWorldBlooms() error {
 func (s *MasterDataService) loadEventMusics() error {
 	return s.loadJSON("eventMusics.json", &s.eventMusics)
 }
+
+// loadHonors 加载称号数据
+func (s *MasterDataService) loadHonors() error {
+	return s.loadJSON("honors.json", &s.honors)
+}
+
+// loadHonorGroups 加载称号组数据
+func (s *MasterDataService) loadHonorGroups() error {
+	return s.loadJSON("honorGroups.json", &s.honorGroups)
+}
+
+// loadBondsHonors 加载羁绊称号数据
+func (s *MasterDataService) loadBondsHonors() error {
+	return s.loadJSON("bondsHonors.json", &s.bondsHonors)
+}

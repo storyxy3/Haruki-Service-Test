@@ -140,6 +140,16 @@ func (s *DrawingService) GenerateEducationLeaderCount(req interface{}) ([]byte, 
 	return s.callAPI("/api/pjsk/education/leader-count", req)
 }
 
+// GenerateHonor 绘制称号
+func (s *DrawingService) GenerateHonor(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/honor/", req)
+}
+
+// GenerateProfile 绘制玩家名片
+func (s *DrawingService) GenerateProfile(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/profile/", req)
+}
+
 // callAPI 统一的 HTTP 调用封装
 func (s *DrawingService) callAPI(endpoint string, reqBody interface{}) ([]byte, error) {
 	url := s.baseURL + endpoint
