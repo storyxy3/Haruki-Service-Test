@@ -31,6 +31,7 @@ type cliEnv struct {
 	eventParser         *service.EventParser
 	eventSearch         *service.EventSearchService
 	userData            *service.UserDataService
+	resolver            *service.GlobalCommandResolver
 }
 
 type scenario struct {
@@ -43,7 +44,7 @@ type scenario struct {
 var globalOutputDir string
 
 func main() {
-	modePtr := flag.String("mode", "detail", "Mode: detail/card-detail, card-list, music (detail), music-brief, music-list, music-progress, music-chart, music-reward-detail, music-reward-basic, gacha-list, gacha-detail, event-detail, event-list, event-record, education-* (challenge/power/area/bonds/leader), honor, profile")
+	modePtr := flag.String("mode", "auto", "Mode: auto/detail/card-detail, card-list, music (detail), music-brief, music-list, music-progress, music-chart, music-reward-detail, music-reward-basic, gacha-list, gacha-detail, event-detail, event-list, event-record, education-* (challenge/power/area/bonds/leader), honor, profile")
 	cmdPtr := flag.String("cmd", "", "Command payload, e.g. '/查卡 190'")
 	scenarioPtr := flag.String("scenario", "", "Run multiple commands; use 'all' for built-in regression or provide a JSON file path")
 	flag.Parse()
@@ -101,6 +102,7 @@ func main() {
 		eventParser:         eventParser,
 		eventSearch:         eventSearch,
 		userData:            userData,
+		resolver:            service.NewGlobalCommandResolver(nicknames),
 	}
 
 	if *scenarioPtr != "" {
@@ -192,6 +194,16 @@ func loadScenarioFile(path string) ([]scenario, error) {
 
 func (env *cliEnv) runMode(mode string, cmd string) error {
 	normalized := strings.ToLower(strings.TrimSpace(mode))
+
+	// 如果是 auto 模式，先用 GlobalResolver 解析
+	if normalized == "auto" {
+		res, err := env.resolver.Resolve(cmd)
+		if err != nil {
+			return err
+		}
+		return env.handleResolvedCommand(res)
+	}
+
 	switch normalized {
 	case "detail", "card-detail":
 		payload, err := env.ensureCommand("card-detail", cmd)
@@ -311,6 +323,63 @@ func (env *cliEnv) runMode(mode string, cmd string) error {
 	default:
 		return fmt.Errorf("unknown mode: %s", mode)
 	}
+}
+
+func (env *cliEnv) handleResolvedCommand(res *service.ResolvedCommand) error {
+	if res.IsHelp {
+		fmt.Println("Haruki Command Help:")
+		fmt.Println("  /查卡 <mnr> [-r jp/en/cn] - 查卡详情")
+		fmt.Println("  /查曲 <ID/名称> [-r jp/en/cn] - 查曲详情")
+		fmt.Println("  /活动 [current/ID/名称] - 查活动详情")
+		fmt.Println("  /sk [UID/排名/@用户] - 查活动排名详情")
+		return nil
+	}
+
+	// 统一处理 Region
+	if res.Region != "" {
+		slog.Info("Switching region", "target", res.Region)
+		// 这里简单处理：如果不是 JP，重新加载 MasterData
+		// 实际上更好的做法是 Controller 内部处理，目前先打印
+	}
+
+	var err error
+	switch res.Module {
+	case service.ModuleCard:
+		switch res.Mode {
+		case "gacha-list":
+			err = testGachaList(env.gachaController, res.Query)
+		case "card-box":
+			err = testCardBox(env.cardController, res.Query)
+		default:
+			// 包含 card-detail 和任何未定义的单卡模式
+			err = testCardDetail(env.cardController, env.cardParser, res.Query)
+		}
+	case service.ModuleMusic:
+		switch res.Mode {
+		case "music-chart":
+			err = testMusicChart(env.musicController, res.Query)
+		default:
+			err = testMusicDetail(env.musicController, res.Query)
+		}
+	case service.ModuleEvent:
+		switch res.Mode {
+		case "event-list":
+			err = testEventList(env.eventController, env.eventParser, res.Query)
+		default:
+			err = testEventDetail(env.eventController, env.eventSearch, res.Query)
+		}
+	case service.ModuleProfile:
+		// sk 默认路由到 profile 或者特定的 sk 解析逻辑
+		err = testProfileGenerate(env.profileController, env.userData, res.Query)
+	default:
+		return fmt.Errorf("解析结果无法直接运行: %v", res)
+	}
+
+	if err != nil {
+		slog.Error("Module execution failed", "module", res.Module, "mode", res.Mode, "error", err)
+		return err
+	}
+	return nil
 }
 
 func (env *cliEnv) ensureCommand(mode, cmd string) (string, error) {

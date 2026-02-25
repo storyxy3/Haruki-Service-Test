@@ -243,6 +243,11 @@ func (s *MasterDataService) buildIndexes() {
 		s.charByID[s.characters[i].ID] = &s.characters[i]
 	}
 
+	// 技能索引
+	for i := range s.skills {
+		s.skillByID[s.skills[i].ID] = &s.skills[i]
+	}
+
 	s.worldBloomsByEventID = make(map[int][]*masterdata.WorldBloom)
 	s.eventIDByHonorID = make(map[int]int)
 	s.honorByID = make(map[int]*masterdata.Honor)
