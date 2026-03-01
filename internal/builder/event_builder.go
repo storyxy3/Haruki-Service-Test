@@ -15,17 +15,17 @@ import (
 
 // EventBuilder 构建活动相关的数据请求
 type EventBuilder struct {
-	masterdata *service.MasterDataService
-	assets     *asset.AssetHelper
-	assetDir   string
+	source   service.EventDataSource
+	assets   *asset.AssetHelper
+	assetDir string
 }
 
 // NewEventBuilder 创建
-func NewEventBuilder(masterdata *service.MasterDataService, assets *asset.AssetHelper, assetDir string) *EventBuilder {
+func NewEventBuilder(source service.EventDataSource, assets *asset.AssetHelper, assetDir string) *EventBuilder {
 	return &EventBuilder{
-		masterdata: masterdata,
-		assets:     assets,
-		assetDir:   assetDir,
+		source:   source,
+		assets:   assets,
+		assetDir: assetDir,
 	}
 }
 
@@ -33,7 +33,7 @@ func (b *EventBuilder) displayEventType(code string) string {
 	eventTypeDisplay := map[string]string{
 		"marathon":          "马拉松",
 		"cheerful_carnival": "5v5",
-		"world_bloom":       "世界连结",
+		"world_bloom":       "WorldLink",
 	}
 	if label, ok := eventTypeDisplay[strings.ToLower(code)]; ok {
 		return label
@@ -46,15 +46,15 @@ func (b *EventBuilder) BuildEventDetailRequest(query model.EventDetailQuery) (*m
 	if query.EventID == 0 {
 		return nil, fmt.Errorf("event id is required")
 	}
-	event, err := b.masterdata.GetEventByID(query.EventID)
+	event, err := b.source.GetEventByID(query.EventID)
 	if err != nil {
 		return nil, err
 	}
 	region := query.Region
 	if region == "" {
-		region = b.masterdata.GetRegion()
+		region = b.source.DefaultRegion()
 	}
-	cards, err := b.masterdata.GetEventCards(event.ID)
+	cards, err := b.source.GetEventCards(event.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (b *EventBuilder) BuildEventDetailRequest(query model.EventDetailQuery) (*m
 func (b *EventBuilder) BuildEventListRequest(query model.EventListQuery) (*model.EventListRequest, error) {
 	region := query.Region
 	if region == "" {
-		region = b.masterdata.GetRegion()
+		region = b.source.DefaultRegion()
 	}
 	events := b.filterEvents(query)
 	if len(events) == 0 {
@@ -101,17 +101,22 @@ func (b *EventBuilder) BuildEventListRequest(query model.EventListQuery) (*model
 }
 
 func (b *EventBuilder) buildEventInfo(event *masterdata.Event) (model.EventInfo, error) {
+	isWLEvent := strings.EqualFold(event.EventType, "world_bloom")
 	info := model.EventInfo{
 		ID:        event.ID,
-		EventType: b.displayEventType(event.EventType),
+		// Keep raw event type code so drawing side can branch world_bloom correctly.
+		EventType: strings.ToLower(strings.TrimSpace(event.EventType)),
 		StartAt:   event.StartAt,
 		EndAt:     event.AggregateAt + 1000,
-		IsWLEvent: strings.EqualFold(event.EventType, "world_bloom"),
+		IsWLEvent: isWLEvent,
 	}
-	if bannerCID, err := b.masterdata.GetEventBannerCharacterID(event.ID); err == nil && bannerCID != 0 {
-		info.BannerCID = &bannerCID
-		if idx := b.getBannerIndex(bannerCID, event.ID); idx != nil {
-			info.BannerIndex = idx
+	// Lunabot behavior: WL does not expose banner character/avatar in detail.
+	if !isWLEvent {
+		if bannerCID, err := b.source.GetEventBannerCharacterID(event.ID); err == nil && bannerCID != 0 {
+			info.BannerCID = &bannerCID
+			if idx := b.getBannerIndex(bannerCID, event.ID); idx != nil {
+				info.BannerIndex = idx
+			}
 		}
 	}
 	if attr, chars := b.extractEventBonuses(event.ID); attr != "" {
@@ -129,23 +134,19 @@ func (b *EventBuilder) buildEventAssets(event *masterdata.Event, info model.Even
 	assets := model.EventAssets{
 		EventBgPath: asset.ResolveAssetPath(b.assets, b.assetDir,
 			filepath.Join("event", assetName, "screen", "bg.png"),
-			filepath.Join("event", assetName+"_rip", "screen", "bg.png"),
 			filepath.Join("event", assetName, "bg.png"),
 		),
 		EventLogoPath: asset.ResolveAssetPath(b.assets, b.assetDir,
 			filepath.Join("event", assetName, "logo", "logo.png"),
-			filepath.Join("event", assetName+"_rip", "logo", "logo.png"),
 			filepath.Join("event", assetName, "logo.png"),
 		),
 	}
 	if !strings.EqualFold(event.EventType, "world_bloom") {
 		assets.EventStoryBgPath = asset.ResolveAssetPath(b.assets, b.assetDir,
 			filepath.Join("event_story", assetName, "screen_image", "story_bg.png"),
-			filepath.Join("event_story", assetName+"_rip", "screen_image", "story_bg.png"),
 		)
 		assets.EventBanCharaImg = asset.ResolveAssetPath(b.assets, b.assetDir,
 			filepath.Join("event", assetName, "screen", "character.png"),
-			filepath.Join("event", assetName+"_rip", "screen", "character.png"),
 		)
 	}
 	if info.BonusAttr != "" {
@@ -172,12 +173,11 @@ func (b *EventBuilder) buildEventBrief(event *masterdata.Event) (model.EventBrie
 		StartAt:   event.StartAt,
 		EndAt:     event.AggregateAt + 1000,
 		EventBannerPath: asset.ResolveAssetPath(b.assets, b.assetDir,
-			filepath.Join("home", "banner", fmt.Sprintf("%s_rip", event.AssetBundleName), event.AssetBundleName+".png"),
 			filepath.Join("home", "banner", event.AssetBundleName, event.AssetBundleName+".png"),
 			filepath.Join("event", event.AssetBundleName, "banner.png"),
 		),
 	}
-	cards, err := b.masterdata.GetEventCards(event.ID)
+	cards, err := b.source.GetEventCards(event.ID)
 	if err == nil && len(cards) > 0 {
 		maxCards := len(cards)
 		if maxCards > 6 {
@@ -187,34 +187,34 @@ func (b *EventBuilder) buildEventBrief(event *masterdata.Event) (model.EventBrie
 			brief.EventCards = append(brief.EventCards, BuildCardThumbnail(b.assets, b.assetDir, cards[i], ThumbnailOptions{}))
 		}
 	}
-	if attr, chars := b.extractEventBonuses(event.ID); attr != "" {
+	if attr, _ := b.extractEventBonuses(event.ID); attr != "" {
 		path := filepath.ToSlash(filepath.Join(b.assetDir, "card", fmt.Sprintf("attr_%s.png", strings.ToLower(attr))))
 		brief.EventAttrPath = &path
-		if len(chars) > 0 {
-			chID := chars[0]
-			charaPath := b.characterIconPath(chID)
-			brief.EventCharaPath = &charaPath
-			if unitPath := b.unitIconPathByCharacter(chID); unitPath != "" {
-				brief.EventUnitPath = &unitPath
-			}
-		}
 	}
-	if bannerCID, err := b.masterdata.GetEventBannerCharacterID(event.ID); err == nil && bannerCID != 0 {
-		if brief.EventCharaPath == nil {
+
+	isWLEvent := strings.EqualFold(event.EventType, "world_bloom")
+	if !isWLEvent {
+		if bannerCID, err := b.source.GetEventBannerCharacterID(event.ID); err == nil && bannerCID != 0 {
 			path := b.characterIconPath(bannerCID)
 			brief.EventCharaPath = &path
-		}
-		if brief.EventUnitPath == nil {
 			if unit := b.unitIconPathByCharacter(bannerCID); unit != "" {
 				brief.EventUnitPath = &unit
 			}
+		}
+		return brief, nil
+	}
+
+	// Lunabot behavior: WL list only keeps unit icon and does not show character avatar.
+	if len(cards) > 0 && len(cards) <= 6 {
+		if unit := b.unitIconPathByCharacter(cards[0].CharacterID); unit != "" {
+			brief.EventUnitPath = &unit
 		}
 	}
 	return brief, nil
 }
 
 func (b *EventBuilder) filterEvents(query model.EventListQuery) []*masterdata.Event {
-	events := b.masterdata.GetEvents()
+	events := b.source.GetEvents()
 	now := time.Now()
 	result := make([]*masterdata.Event, 0, len(events))
 	includePast := query.IncludePast
@@ -238,13 +238,13 @@ func (b *EventBuilder) filterEvents(query model.EventListQuery) []*masterdata.Ev
 		if query.Year != 0 && start.Year() != query.Year {
 			continue
 		}
-		if query.Unit != "" || query.Attr != "" || query.CharacterID != 0 {
-			if !b.matchEventBonus(ev.ID, query.Unit, query.Attr, query.CharacterID) {
+		if query.Unit != "" || query.Blend || query.Attr != "" || query.CharacterID != 0 || len(query.CharacterIDs) > 0 {
+			if !b.matchEventBonus(ev.ID, query.Unit, query.Blend, query.Attr, query.CharacterID, query.CharacterIDs) {
 				continue
 			}
 		}
 		if query.BannerCharID != nil {
-			bid, err := b.masterdata.GetEventBannerCharacterID(ev.ID)
+			bid, err := b.source.GetEventBannerCharacterID(ev.ID)
 			if err != nil || bid != *query.BannerCharID {
 				continue
 			}
@@ -252,7 +252,7 @@ func (b *EventBuilder) filterEvents(query model.EventListQuery) []*masterdata.Ev
 		result = append(result, ev)
 	}
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].StartAt > result[j].StartAt
+		return result[i].StartAt < result[j].StartAt
 	})
 	if query.Limit > 0 && len(result) > query.Limit {
 		result = result[:query.Limit]
@@ -261,7 +261,7 @@ func (b *EventBuilder) filterEvents(query model.EventListQuery) []*masterdata.Ev
 }
 
 func (b *EventBuilder) extractEventBonuses(eventID int) (string, []int) {
-	bonuses, err := b.masterdata.GetEventDeckBonuses(eventID)
+	bonuses, err := b.source.GetEventDeckBonuses(eventID)
 	if err != nil {
 		return "", nil
 	}
@@ -272,7 +272,7 @@ func (b *EventBuilder) extractEventBonuses(eventID int) (string, []int) {
 			attr = strings.ToLower(bb.CardAttr)
 		}
 		if bb.GameCharacterUnitID != 0 {
-			if unit, err := b.masterdata.GetGameCharacterUnit(bb.GameCharacterUnitID); err == nil {
+			if unit, err := b.source.GetGameCharacterUnit(bb.GameCharacterUnitID); err == nil {
 				charSet[unit.GameCharacterID] = struct{}{}
 			}
 		}
@@ -285,39 +285,57 @@ func (b *EventBuilder) extractEventBonuses(eventID int) (string, []int) {
 	return attr, chars
 }
 
-func (b *EventBuilder) matchEventBonus(eventID int, unit string, attr string, charID int) bool {
-	if unit == "" && attr == "" && charID == 0 {
+func (b *EventBuilder) matchEventBonus(eventID int, unit string, blend bool, attr string, charID int, charIDs []int) bool {
+	if unit == "" && !blend && attr == "" && charID == 0 && len(charIDs) == 0 {
 		return true
 	}
-	bonuses, err := b.masterdata.GetEventDeckBonuses(eventID)
+	bonuses, err := b.source.GetEventDeckBonuses(eventID)
 	if err != nil {
 		return false
 	}
+
+	attrMatched := attr == ""
+	units := make(map[string]struct{})
+	charSet := make(map[int]struct{})
+
 	for _, bonus := range bonuses {
-		matchAttr := attr == "" || strings.EqualFold(bonus.CardAttr, attr)
-		matchUnit := true
-		if unit != "" {
-			gcu, err := b.masterdata.GetGameCharacterUnit(bonus.GameCharacterUnitID)
-			if err != nil || !strings.EqualFold(gcu.Unit, unit) {
-				matchUnit = false
-			}
+		if !attrMatched && strings.EqualFold(bonus.CardAttr, attr) {
+			attrMatched = true
 		}
-		matchChar := true
-		if charID != 0 {
-			gcu, err := b.masterdata.GetGameCharacterUnit(bonus.GameCharacterUnitID)
-			if err != nil || gcu.GameCharacterID != charID {
-				matchChar = false
-			}
-		}
-		if matchAttr && matchUnit && matchChar {
-			return true
+		gcu, gcuErr := b.source.GetGameCharacterUnit(bonus.GameCharacterUnitID)
+		if gcuErr == nil && gcu != nil {
+			units[strings.ToLower(strings.TrimSpace(gcu.Unit))] = struct{}{}
+			charSet[gcu.GameCharacterID] = struct{}{}
 		}
 	}
-	return attr == "" && unit == "" && charID == 0
+
+	unitMatched := unit == ""
+	if unit != "" {
+		_, unitMatched = units[strings.ToLower(strings.TrimSpace(unit))]
+	}
+	if blend || strings.EqualFold(strings.TrimSpace(unit), "blend") {
+		unitMatched = len(units) > 1
+	}
+
+	charMatched := true
+	if charID != 0 {
+		_, charMatched = charSet[charID]
+	}
+	for _, cid := range charIDs {
+		if cid == 0 {
+			continue
+		}
+		if _, ok := charSet[cid]; !ok {
+			charMatched = false
+			break
+		}
+	}
+
+	return attrMatched && unitMatched && charMatched
 }
 
 func (b *EventBuilder) getBannerIndex(charID, eventID int) *int {
-	events := b.masterdata.GetBanEvents(charID)
+	events := b.source.GetBanEvents(charID)
 	sort.Slice(events, func(i, j int) bool {
 		return events[i].StartAt < events[j].StartAt
 	})
@@ -331,7 +349,7 @@ func (b *EventBuilder) getBannerIndex(charID, eventID int) *int {
 }
 
 func (b *EventBuilder) buildWorldBloomTimeline(eventID int) []model.EventWlTiming {
-	chapters := b.masterdata.GetWorldBloomChapters(eventID)
+	chapters := b.source.GetWorldBloomChapters(eventID)
 	if len(chapters) == 0 {
 		return nil
 	}
@@ -365,7 +383,7 @@ func (b *EventBuilder) characterIconPath(charID int) string {
 }
 
 func (b *EventBuilder) unitIconPathByCharacter(charID int) string {
-	char, err := b.masterdata.GetCharacterByID(charID)
+	char, err := b.source.GetCharacterByID(charID)
 	if err != nil || char == nil {
 		return ""
 	}

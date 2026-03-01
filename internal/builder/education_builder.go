@@ -11,23 +11,26 @@ import (
 )
 
 type EducationBuilder struct {
-	masterdata *service.MasterDataService
-	userData   *service.UserDataService
-	assets     *asset.AssetHelper
-	assetDir   string
+	source   service.EducationDataSource
+	userData *service.UserDataService
+	assets   *asset.AssetHelper
+	assetDir string
 }
 
-func NewEducationBuilder(masterdata *service.MasterDataService, userData *service.UserDataService, assets *asset.AssetHelper, assetDir string) *EducationBuilder {
+func NewEducationBuilder(source service.EducationDataSource, userData *service.UserDataService, assets *asset.AssetHelper, assetDir string) *EducationBuilder {
 	return &EducationBuilder{
-		masterdata: masterdata,
-		userData:   userData,
-		assets:     assets,
-		assetDir:   assetDir,
+		source:   source,
+		userData: userData,
+		assets:   assets,
+		assetDir: assetDir,
 	}
 }
 
 // BuildChallengeLiveRequest assembles challenge-live detail payload from user data.
 func (b *EducationBuilder) BuildChallengeLiveRequest(region string) (*model.ChallengeLiveDetailsRequest, error) {
+	if b.source == nil {
+		return nil, fmt.Errorf("education data source is not configured")
+	}
 	if b.userData == nil {
 		return nil, fmt.Errorf("user data is not configured, please provide suite dump")
 	}
@@ -90,7 +93,7 @@ func (b *EducationBuilder) BuildChallengeLiveRequest(region string) (*model.Chal
 }
 
 func (b *EducationBuilder) pickChallengeRewards(charID int, claimed map[int]struct{}) (int, int) {
-	rewards := b.masterdata.GetChallengeRewardsByCharacter(charID)
+	rewards := b.source.GetChallengeRewardsByCharacter(charID)
 	if len(rewards) == 0 {
 		return 0, 0
 	}
@@ -100,7 +103,7 @@ func (b *EducationBuilder) pickChallengeRewards(charID int, claimed map[int]stru
 		if _, ok := claimed[reward.ID]; ok {
 			continue
 		}
-		box := b.masterdata.GetResourceBoxByPurpose("challenge_live_high_score", reward.ResourceBoxID)
+		box := b.source.GetResourceBoxByPurpose("challenge_live_high_score", reward.ResourceBoxID)
 		if box == nil {
 			continue
 		}
@@ -121,7 +124,7 @@ func (b *EducationBuilder) pickChallengeRewards(charID int, claimed map[int]stru
 func (b *EducationBuilder) estimateChallengeMaxScore() int {
 	maxScore := 0
 	for cid := 1; cid <= 26; cid++ {
-		for _, reward := range b.masterdata.GetChallengeRewardsByCharacter(cid) {
+		for _, reward := range b.source.GetChallengeRewardsByCharacter(cid) {
 			if reward.HighScore > maxScore {
 				maxScore = reward.HighScore
 			}

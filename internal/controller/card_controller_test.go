@@ -18,10 +18,12 @@ func TestCardController_BuildCardListRequest(t *testing.T) {
 
 	// Service
 	parser := service.NewCardParser(map[string]int{"mnr": 5})
-	searchService := service.NewCardSearchService(repo, parser)
+	cardSource := service.NewMasterDataCardSource(repo)
+	eventSource := service.NewMasterDataEventSource(repo)
+	searchService := service.NewCardSearchService(cardSource, parser)
 
 	// Controller
-	ctrl := NewCardController(repo, nil, searchService, "http://localhost:8000", nil, nil)
+	ctrl := NewCardController(cardSource, cardSource, eventSource, repo, nil, searchService, "http://localhost:8000", nil, nil)
 
 	// Test
 	cardIDs := []int{1, 2}

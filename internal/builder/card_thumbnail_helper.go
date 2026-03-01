@@ -37,7 +37,6 @@ func BuildCardThumbnail(assets *asset.AssetHelper, assetDir string, card *master
 		}
 		thumbPath = asset.ResolveAssetPath(assets, assetDir,
 			filepath.Join("thumbnail", "chara", card.AssetBundleName+fileSuffix),
-			filepath.Join("thumbnail", "chara_rip", card.AssetBundleName+fileSuffix),
 			filepath.Join("character", "member", card.AssetBundleName, memberFile),
 		)
 	} else {

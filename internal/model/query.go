@@ -41,8 +41,9 @@ type MusicChartQuery struct {
 
 // EventDetailQuery 表示活动详情查询
 type EventDetailQuery struct {
-	Region  string `json:"region"`
-	EventID int    `json:"event_id"`
+	Region     string `json:"region"`
+	EventID    int    `json:"event_id"`
+	UseCloudDB bool   `json:"use_cloud_db,omitempty"`
 }
 
 // EventListQuery 表示活动列表筛选条件
@@ -50,9 +51,11 @@ type EventListQuery struct {
 	Region        string `json:"region"`
 	EventType     string `json:"event_type,omitempty"`
 	Unit          string `json:"unit,omitempty"`
+	Blend         bool   `json:"blend,omitempty"`
 	Attr          string `json:"attr,omitempty"`
 	Year          int    `json:"year,omitempty"`
 	CharacterID   int    `json:"character_id,omitempty"`
+	CharacterIDs  []int  `json:"character_ids,omitempty"`
 	BannerCharID  *int   `json:"banner_char_id,omitempty"`
 	IncludePast   bool   `json:"include_past,omitempty"`
 	IncludeFuture bool   `json:"include_future,omitempty"`
@@ -116,12 +119,17 @@ type GachaListQuery struct {
 	IncludePast   bool   `json:"include_past,omitempty"`
 	CardID        int    `json:"card_id,omitempty"`
 	Keyword       string `json:"keyword,omitempty"`
+	IsRerelease   bool   `json:"is_rerelease,omitempty"` // 复刻池
+	IsRecall      bool   `json:"is_recall,omitempty"`    // 回响池 (colorful festival rerun)
+	OnlyCurrent   bool   `json:"only_current,omitempty"` // 只显示当前开放
 }
 
 // GachaDetailQuery 卡池详情
 type GachaDetailQuery struct {
-	Region  string `json:"region"`
-	GachaID int    `json:"gacha_id"`
+	Region   string `json:"region"`
+	GachaID  int    `json:"gacha_id"`
+	NegIndex int    `json:"neg_index,omitempty"` // 负数索引, -1 为倒数第1个卡池
+	EventID  int    `json:"event_id,omitempty"`  // 活动对应的卡池
 }
 
 // DeckQuery 组队推荐参数
@@ -134,17 +142,36 @@ type DeckQuery struct {
 	ExcludedCards []int  `json:"excluded_cards,omitempty"`
 }
 
+// DeckAutoQuery describes command-driven auto deck recommendation input.
+type DeckAutoQuery struct {
+	Region        string `json:"region"`
+	RecommendType string `json:"recommend_type"` // event/challenge/no_event/bonus/mysekai
+	EventID       *int   `json:"event_id,omitempty"`
+	Limit         int    `json:"limit,omitempty"`
+	TargetBonuses []int  `json:"target_bonuses,omitempty"`
+	Args          string `json:"args,omitempty"`
+}
+
 // HonorQuery 称号绘制查询
 type HonorQuery struct {
-	Region     string `json:"region"`
-	HonorID    int    `json:"honor_id"`
-	HonorLevel int    `json:"honor_level,omitempty"`
-	IsMain     bool   `json:"is_main,omitempty"`
-	Rank       int    `json:"rank,omitempty"` // 用于绘制排名数字，未来活动记录指令可能使用
+	Region           string `json:"region"`
+	HonorID          int    `json:"honor_id"`
+	HonorLevel       int    `json:"honor_level,omitempty"`
+	IsMain           bool   `json:"is_main,omitempty"`
+	Rank             int    `json:"rank,omitempty"` // ?????????????????????
+	BondsHonorWordID int    `json:"bonds_honor_word_id,omitempty"`
 }
 
 // ProfileQuery 玩家名片查询
 type ProfileQuery struct {
 	UserID string `json:"user_id"`
 	Region string `json:"region"`
+}
+
+// StampListQuery stamp 列表构建查询
+type StampListQuery struct {
+	Region        string `json:"region"`
+	PromptMessage string `json:"prompt_message,omitempty"`
+	IDs           []int  `json:"ids,omitempty"`
+	Limit         int    `json:"limit,omitempty"`
 }

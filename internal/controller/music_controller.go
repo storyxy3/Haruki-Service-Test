@@ -16,7 +16,9 @@ import (
 // MusicController 音乐控制器
 // 定义在这里以便 builder 方法挂载
 type MusicController struct {
-	masterdata *service.MasterDataService
+	source     service.MusicDataSource
+	sources    map[string]service.MusicDataSource
+	defaultRegion string
 	drawing    *service.DrawingService
 	drawingURL string
 	assetDir   string
@@ -26,7 +28,7 @@ type MusicController struct {
 
 // NewMusicController 创建音乐控制器
 func NewMusicController(
-	masterdata *service.MasterDataService,
+	source service.MusicDataSource,
 	drawing *service.DrawingService,
 	drawingURL string,
 	assetHelper *asset.AssetHelper,
@@ -36,14 +38,85 @@ func NewMusicController(
 	if assetHelper != nil {
 		assetDir = assetHelper.Primary()
 	}
-	return &MusicController{
-		masterdata: masterdata,
+	ctrl := &MusicController{
+		source:     source,
+		sources:    make(map[string]service.MusicDataSource),
 		drawing:    drawing,
 		drawingURL: drawingURL,
 		assetDir:   assetDir,
 		assets:     assetHelper,
 		userData:   userData,
 	}
+	ctrl.defaultRegion = ctrl.normalizeRegion("jp")
+	ctrl.registerSource(source)
+	return ctrl
+}
+
+func (c *MusicController) RegisterSource(src service.MusicDataSource) {
+	c.registerSource(src)
+}
+
+func (c *MusicController) registerSource(src service.MusicDataSource) {
+	if src == nil {
+		return
+	}
+	region := c.normalizeRegion(src.DefaultRegion())
+	if region == "" {
+		region = c.defaultRegion
+	}
+	if region == "" {
+		region = "jp"
+	}
+	if _, exists := c.sources[region]; !exists {
+		c.sources[region] = src
+	}
+	if c.defaultRegion == "" {
+		c.defaultRegion = region
+	}
+	if c.source == nil {
+		c.source = src
+	}
+}
+
+func (c *MusicController) normalizeRegion(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func (c *MusicController) resolveRegion(requested string) string {
+	normalized := c.normalizeRegion(requested)
+	if normalized != "" {
+		return normalized
+	}
+	if c.defaultRegion != "" {
+		return c.defaultRegion
+	}
+	if c.source != nil {
+		return c.normalizeRegion(c.source.DefaultRegion())
+	}
+	return "jp"
+}
+
+func (c *MusicController) sourceForRegion(region string) service.MusicDataSource {
+	requested := c.normalizeRegion(region)
+	if requested != "" {
+		if src, ok := c.sources[requested]; ok && src != nil {
+			return src
+		}
+		return nil
+	}
+	normalized := c.resolveRegion("")
+	if src, ok := c.sources[normalized]; ok && src != nil {
+		return src
+	}
+	if c.source != nil {
+		return c.source
+	}
+	for _, src := range c.sources {
+		if src != nil {
+			return src
+		}
+	}
+	return nil
 }
 
 // RenderMusicDetail 渲染音乐详情
@@ -80,28 +153,36 @@ func (c *MusicController) RenderMusicChart(query model.MusicChartQuery) ([]byte,
 }
 
 func (c *MusicController) buildMusicChartRequest(query model.MusicChartQuery) (*model.MusicChartRequest, error) {
-	music, err := c.masterdata.SearchMusic(query.Query)
+	effectiveRegion := c.resolveRegion(query.Region)
+	source := c.sourceForRegion(effectiveRegion)
+	if source == nil {
+		return nil, fmt.Errorf("no music data source for region %s", effectiveRegion)
+	}
+	query.Region = effectiveRegion
+	music, err := source.SearchMusic(query.Query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search music: %w", err)
 	}
 
-	b := builder.NewMusicBuilder(c.masterdata, c.assets, c.assetDir, c.userData)
+	b := builder.NewMusicBuilder(source, c.assets, c.assetDir, c.userData)
 	return b.BuildMusicChartRequest(query, music)
 }
 
 // BuildMusicDetail 鏋勫缓闊充箰璇︽儏璇锋眰锛堟ā寮?1锛?
 func (c *MusicController) BuildMusicDetail(query model.MusicQuery) (*model.DrawingRequest, error) {
-	music, err := c.masterdata.SearchMusic(query.Query)
+	effectiveRegion := c.resolveRegion(query.Region)
+	source := c.sourceForRegion(effectiveRegion)
+	if source == nil {
+		return nil, fmt.Errorf("no music data source for region %s", effectiveRegion)
+	}
+	music, err := source.SearchMusic(query.Query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search music: %w", err)
 	}
 
-	region := query.Region
-	if region == "" {
-		region = c.masterdata.GetRegion()
-	}
+	region := effectiveRegion
 
-	b := builder.NewMusicBuilder(c.masterdata, c.assets, c.assetDir, c.userData)
+	b := builder.NewMusicBuilder(source, c.assets, c.assetDir, c.userData)
 	req, err := b.BuildMusicDetailRequest(music, region)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build music request: %w", err)
@@ -134,19 +215,21 @@ func (c *MusicController) BuildMusicBriefListRequest(musicIDs []int, difficulty,
 		diff = "master"
 	}
 
-	if region == "" {
-		region = c.masterdata.GetRegion()
+	region = c.resolveRegion(region)
+	source := c.sourceForRegion(region)
+	if source == nil {
+		return nil, fmt.Errorf("no music data source for region %s", region)
 	}
 
 	var list []model.MusicBriefListItem
 	for _, id := range musicIDs {
-		music, err := c.masterdata.GetMusicByID(id)
+		music, err := source.GetMusicByID(id)
 		if err != nil {
 			return nil, fmt.Errorf("music %d not found: %w", id, err)
 		}
 
-		level := c.getDifficultyLevel(music.ID, diff)
-		jacket := builder.NewMusicBuilder(c.masterdata, c.assets, c.assetDir, c.userData).BuildMusicJacketPath(music.AssetBundleName)
+		level := builder.NewMusicBuilder(source, c.assets, c.assetDir, c.userData).GetDifficultyLevel(music.ID, diff)
+		jacket := builder.NewMusicBuilder(source, c.assets, c.assetDir, c.userData).BuildMusicJacketPath(music.AssetBundleName)
 
 		list = append(list, model.MusicBriefListItem{
 			ID:              music.ID,
@@ -173,8 +256,11 @@ func (c *MusicController) buildUserResults(diff string) map[int]string {
 	return c.userData.MusicResults(diff)
 }
 
-func (c *MusicController) getDifficultyLevel(musicID int, diff string) int {
-	b := builder.NewMusicBuilder(c.masterdata, c.assets, c.assetDir, c.userData)
+func (c *MusicController) getDifficultyLevel(musicID int, diff string, src service.MusicDataSource) int {
+	if src == nil {
+		return 0
+	}
+	b := builder.NewMusicBuilder(src, c.assets, c.assetDir, c.userData)
 	return b.GetDifficultyLevel(musicID, diff)
 }
 
@@ -209,8 +295,10 @@ func (c *MusicController) BuildMusicListRequest(query model.MusicListQuery) (*mo
 	}
 
 	region := query.Region
-	if region == "" {
-		region = c.masterdata.GetRegion()
+	region = c.resolveRegion(region)
+	source := c.sourceForRegion(region)
+	if source == nil {
+		return nil, fmt.Errorf("no music data source for region %s", region)
 	}
 
 	bannedIDs := map[int]struct{}{
@@ -228,7 +316,7 @@ func (c *MusicController) BuildMusicListRequest(query model.MusicListQuery) (*mo
 		minLevel, maxLevel = maxLevel, minLevel
 	}
 
-	musics := c.masterdata.GetMusics()
+	musics := source.GetMusics()
 	now := time.Now()
 	keyword := strings.ToLower(strings.TrimSpace(query.Keyword))
 	var list []model.MusicListItem
@@ -240,7 +328,7 @@ func (c *MusicController) BuildMusicListRequest(query model.MusicListQuery) (*mo
 			pron := strings.ToLower(strings.TrimSpace(music.Pronunciation))
 			matched := strings.Contains(title, keyword) || (pron != "" && strings.Contains(pron, keyword))
 			if !matched {
-				if tags, err := c.masterdata.GetMusicTags(music.ID); err == nil {
+				if tags, err := source.GetMusicTags(music.ID); err == nil {
 					for _, tag := range tags {
 						if strings.Contains(strings.ToLower(tag), keyword) {
 							matched = true
@@ -260,7 +348,7 @@ func (c *MusicController) BuildMusicListRequest(query model.MusicListQuery) (*mo
 			continue
 		}
 
-		level := c.getDifficultyLevel(music.ID, diff)
+		level := c.getDifficultyLevel(music.ID, diff, source)
 		if level == 0 {
 			continue
 		}
@@ -271,7 +359,7 @@ func (c *MusicController) BuildMusicListRequest(query model.MusicListQuery) (*mo
 			continue
 		}
 
-		jackets[music.ID] = builder.NewMusicBuilder(c.masterdata, c.assets, c.assetDir, c.userData).BuildMusicJacketPath(music.AssetBundleName)
+		jackets[music.ID] = builder.NewMusicBuilder(source, c.assets, c.assetDir, c.userData).BuildMusicJacketPath(music.AssetBundleName)
 		list = append(list, model.MusicListItem{
 			ID:         music.ID,
 			Difficulty: level,
@@ -315,7 +403,7 @@ func (c *MusicController) BuildMusicListRequest(query model.MusicListQuery) (*mo
 
 func (c *MusicController) buildPlaceholderProfile(region string) model.DetailedProfileCardRequest {
 	if region == "" {
-		region = c.masterdata.GetRegion()
+		region = c.resolveRegion(region)
 	}
 	region = strings.ToUpper(region)
 
@@ -378,9 +466,7 @@ func (c *MusicController) BuildMusicProgressRequest(query model.MusicProgressQue
 	}
 
 	region := query.Region
-	if region == "" {
-		region = c.masterdata.GetRegion()
-	}
+	region = c.resolveRegion(region)
 
 	counts := query.Counts
 	if len(counts) == 0 {
@@ -425,9 +511,7 @@ func (c *MusicController) RenderMusicRewardsDetail(query model.MusicRewardsDetai
 // BuildMusicRewardsDetailRequest 构建详细奖励请求体
 func (c *MusicController) BuildMusicRewardsDetailRequest(query model.MusicRewardsDetailQuery) (*model.DetailMusicRewardsRequest, error) {
 	region := query.Region
-	if region == "" {
-		region = c.masterdata.GetRegion()
-	}
+	region = c.resolveRegion(region)
 
 	combo := ensureDetailComboRewards(query.ComboRewards)
 
@@ -466,9 +550,7 @@ func (c *MusicController) RenderMusicRewardsBasic(query model.MusicRewardsBasicQ
 // BuildMusicRewardsBasicRequest 构建基础奖励请求体
 func (c *MusicController) BuildMusicRewardsBasicRequest(query model.MusicRewardsBasicQuery) (*model.BasicMusicRewardsRequest, error) {
 	region := query.Region
-	if region == "" {
-		region = c.masterdata.GetRegion()
-	}
+	region = c.resolveRegion(region)
 
 	combo := query.ComboRewards
 	if combo == nil {
@@ -490,10 +572,14 @@ func (c *MusicController) BuildMusicRewardsBasicRequest(query model.MusicRewards
 }
 
 func (c *MusicController) buildDefaultProgressCounts(diff string) []model.PlayProgressCount {
-	musics := c.masterdata.GetMusics()
+	source := c.sourceForRegion("")
+	if source == nil {
+		return nil
+	}
+	musics := source.GetMusics()
 	counts := make(map[int]int)
 	for _, music := range musics {
-		level := c.getDifficultyLevel(music.ID, diff)
+		level := c.getDifficultyLevel(music.ID, diff, source)
 		if level == 0 {
 			continue
 		}
@@ -529,14 +615,18 @@ func (c *MusicController) buildUserProgressCounts(diff string) []model.PlayProgr
 	if c.userData == nil {
 		return nil
 	}
-	musics := c.masterdata.GetMusics()
+	source := c.sourceForRegion("")
+	if source == nil {
+		return nil
+	}
+	musics := source.GetMusics()
 	countMap := make(map[int]*model.PlayProgressCount)
 	now := time.Now()
 	for _, music := range musics {
 		if time.UnixMilli(music.PublishedAt).After(now) {
 			continue
 		}
-		level := c.getDifficultyLevel(music.ID, diff)
+		level := c.getDifficultyLevel(music.ID, diff, source)
 		if level == 0 {
 			continue
 		}

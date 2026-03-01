@@ -1,38 +1,84 @@
 package controller
 
 import (
+	"fmt"
+	"strings"
+
 	"Haruki-Service-API/internal/builder"
 	"Haruki-Service-API/internal/model"
 	"Haruki-Service-API/internal/service"
 	"Haruki-Service-API/pkg/asset"
-	"fmt"
 )
 
-// HonorController 称号控制器
+// HonorController handles honor rendering requests.
 type HonorController struct {
-	MasterData   *service.MasterDataService
-	Drawing      *service.DrawingService
-	Asset        *asset.AssetHelper
-	HonorBuilder *builder.HonorBuilder
+	source  service.HonorDataSource
+	sources map[string]service.HonorDataSource
+	Drawing *service.DrawingService
+	Asset   *asset.AssetHelper
 }
 
-// NewHonorController 创建称号控制器
-func NewHonorController(md *service.MasterDataService, draw *service.DrawingService, ast *asset.AssetHelper) *HonorController {
-	return &HonorController{
-		MasterData:   md,
-		Drawing:      draw,
-		Asset:        ast,
-		HonorBuilder: builder.NewHonorBuilder(md, ast, ast.Primary()),
+// NewHonorController creates a controller with default source.
+func NewHonorController(source service.HonorDataSource, draw *service.DrawingService, ast *asset.AssetHelper) *HonorController {
+	ctrl := &HonorController{
+		source:  source,
+		sources: make(map[string]service.HonorDataSource),
+		Drawing: draw,
+		Asset:   ast,
 	}
+	ctrl.registerSource(source)
+	return ctrl
 }
 
-// BuildHonorRequest 组装基础的称号请求用于绘图
+func (c *HonorController) RegisterSource(src service.HonorDataSource) {
+	c.registerSource(src)
+}
+
+func (c *HonorController) registerSource(src service.HonorDataSource) {
+	if src == nil {
+		return
+	}
+	region := strings.ToLower(strings.TrimSpace(src.DefaultRegion()))
+	if region == "" {
+		return
+	}
+	c.sources[region] = src
+}
+
+func (c *HonorController) sourceForRegion(region string) service.HonorDataSource {
+	normalized := strings.ToLower(strings.TrimSpace(region))
+	if normalized == "" {
+		if c.source != nil {
+			return c.source
+		}
+		for _, src := range c.sources {
+			return src
+		}
+		return nil
+	}
+	if src, ok := c.sources[normalized]; ok {
+		return src
+	}
+	if c.source != nil {
+		return c.source
+	}
+	return nil
+}
+
+// BuildHonorRequest builds drawing payload from honor query.
 func (c *HonorController) BuildHonorRequest(query model.HonorQuery) (model.HonorRequest, error) {
-	return c.HonorBuilder.BuildHonorRequest(query)
+	source := c.sourceForRegion(query.Region)
+	if source == nil {
+		return model.HonorRequest{}, fmt.Errorf("honor data source not configured")
+	}
+	assetDir := ""
+	if c.Asset != nil {
+		assetDir = c.Asset.Primary()
+	}
+	return builder.NewHonorBuilder(source, c.Asset, assetDir).BuildHonorRequest(query)
 }
 
 func (c *HonorController) RenderHonorImage(req model.HonorRequest) ([]byte, error) {
-	// 直接将 req 转发给 DrawingService
 	data, err := c.Drawing.GenerateHonor(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate honor image: %w", err)

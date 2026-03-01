@@ -44,6 +44,15 @@ type EventParser struct {
 	nicknames map[string]int
 }
 
+// CharacterIDByNickname resolves a character nickname to character id.
+func (p *EventParser) CharacterIDByNickname(token string) (int, bool) {
+	if p == nil {
+		return 0, false
+	}
+	cid, ok := p.nicknames[strings.ToLower(strings.TrimSpace(token))]
+	return cid, ok
+}
+
 // NewEventParser 创建解析器
 func NewEventParser(nicknames map[string]int) *EventParser {
 	return &EventParser{
@@ -238,18 +247,32 @@ func (p *EventParser) tryParseFilter(args string) *EventQueryInfo {
 			if part == nick {
 				filter.CharacterID = cid
 				matched = true
+				partMatched = true
 				break
 			}
 		}
+		if partMatched {
+			continue
+		}
 
 		// 5. Attribute
-		attrs := []string{"cute", "cool", "pure", "happy", "mysterious"}
-		for _, attr := range attrs {
-			if part == attr {
+		attrAliases := map[string]string{
+			"cute": "cute", "可爱": "cute", "粉": "cute",
+			"cool": "cool", "帅气": "cool", "蓝": "cool",
+			"pure": "pure", "纯真": "pure", "草": "pure", "绿": "pure",
+			"happy": "happy", "快乐": "happy", "橙": "happy",
+			"mysterious": "mysterious", "神秘": "mysterious", "紫": "mysterious",
+		}
+		for alias, attr := range attrAliases {
+			if part == alias {
 				filter.Attr = attr
 				matched = true
+				partMatched = true
 				break
 			}
+		}
+		if !partMatched {
+			return nil // unrecognized token in filter list
 		}
 	}
 

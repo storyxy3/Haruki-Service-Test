@@ -330,11 +330,8 @@ func resolveCardPortraitPath(assetDir string, cardID int, afterTraining bool, ma
 	}
 	thumbnail := fmt.Sprintf("%s_%s.png", card.AssetBundleName, imageType)
 	candidates := []string{
-		filepath.Join(assetDir, "thumbnail", "chara", thumbnail),     // 优先：无 _rip（sekai.best 格式）
-		filepath.Join(assetDir, "thumbnail", "chara_rip", thumbnail), // 兼容旧版
+		filepath.Join(assetDir, "thumbnail", "chara", thumbnail),
 		filepath.Join(assetDir, "character", "member", card.AssetBundleName, "card_normal.png"),
-		filepath.Join(assetDir, "character", "member", card.AssetBundleName+"_rip", "card_normal.png"),
-		filepath.Join(assetDir, "character", "member", fmt.Sprintf("%s_rip", card.AssetBundleName), "card_normal.png"),
 	}
 	for _, path := range candidates {
 		if _, err := os.Stat(path); err == nil {
@@ -502,4 +499,12 @@ func (s *UserDataService) GetUserCards() []map[string]interface{} {
 		return nil
 	}
 	return s.baseProfile.UserCards
+}
+
+// RawBytes serializes raw suite data for external deck recommender backend.
+func (s *UserDataService) RawBytes() ([]byte, error) {
+	if s == nil || s.rawData == nil {
+		return nil, fmt.Errorf("raw user data unavailable")
+	}
+	return json.Marshal(s.rawData)
 }

@@ -152,7 +152,7 @@ type MusicMD struct {
 	Lyricist     string   `json:"lyricist"`
 	Arranger     string   `json:"arranger"`
 	Categories   []string `json:"categories"`
-	ReleaseAt    int      `json:"release_at"`
+	ReleaseAt    int64    `json:"release_at"`
 	IsFullLength bool     `json:"is_full_length"`
 }
 
@@ -678,4 +678,58 @@ type PlayerFramePaths struct {
 	LeftTop     string `json:"lefttop"`
 	RightBottom string `json:"rightbottom"`
 	RightTop    string `json:"righttop"`
+}
+
+// StampData mirrors DrawingAPI stamp item payload.
+type StampData struct {
+	ID        int    `json:"id"`
+	ImagePath string `json:"image_path"`
+	TextColor [4]int `json:"text_color,omitempty"`
+}
+
+// StampListRequest mirrors /stamp/list request.
+type StampListRequest struct {
+	PromptMessage *string     `json:"prompt_message,omitempty"`
+	Stamps        []StampData `json:"stamps"`
+}
+
+// CharaBirthdayCard mirrors birthday card entry.
+type CharaBirthdayCard struct {
+	ID            int    `json:"id"`
+	ThumbnailPath string `json:"thumbnail_path"`
+}
+
+// BirthdayEventTime mirrors birthday event time text span.
+type BirthdayEventTime struct {
+	StartText string `json:"start_text"`
+	EndText   string `json:"end_text"`
+}
+
+// CharaBirthdayData mirrors compact character birthday info.
+type CharaBirthdayData struct {
+	CID      int    `json:"cid"`
+	Month    int    `json:"month"`
+	Day      int    `json:"day"`
+	IconPath string `json:"icon_path"`
+}
+
+// CharaBirthdayRequest mirrors /misc/chara-birthday request.
+type CharaBirthdayRequest struct {
+	CID               int                 `json:"cid"`
+	Month             int                 `json:"month"`
+	Day               int                 `json:"day"`
+	RegionName        string              `json:"region_name"`
+	DaysUntilBirthday int                 `json:"days_until_birthday"`
+	ColorCode         string              `json:"color_code"`
+	SDImagePath       string              `json:"sd_image_path"`
+	TitleImagePath    string              `json:"title_image_path"`
+	CardImagePath     string              `json:"card_image_path"`
+	Cards             []CharaBirthdayCard `json:"cards"`
+	IsFifthAnniv      bool                `json:"is_fifth_anniv"`
+	GachaTime         BirthdayEventTime   `json:"gacha_time"`
+	LiveTime          BirthdayEventTime   `json:"live_time"`
+	DropTime          *BirthdayEventTime  `json:"drop_time,omitempty"`
+	FlowerTime        *BirthdayEventTime  `json:"flower_time,omitempty"`
+	PartyTime         *BirthdayEventTime  `json:"party_time,omitempty"`
+	AllCharacters     []CharaBirthdayData `json:"all_characters"`
 }

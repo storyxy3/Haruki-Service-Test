@@ -13,20 +13,20 @@ import (
 
 // ProfileBuilder 负责构建 ProfileRequest
 type ProfileBuilder struct {
-	masterdata   *service.MasterDataService
+	source       service.ProfileDataSource
 	assets       *asset.AssetHelper
 	assetDir     string
 	userData     *service.UserDataService
 	honorBuilder *HonorBuilder
 }
 
-func NewProfileBuilder(m *service.MasterDataService, a *asset.AssetHelper, d string, u *service.UserDataService) *ProfileBuilder {
+func NewProfileBuilder(source service.ProfileDataSource, a *asset.AssetHelper, d string, u *service.UserDataService) *ProfileBuilder {
 	return &ProfileBuilder{
-		masterdata:   m,
+		source:       source,
 		assets:       a,
 		assetDir:     d,
 		userData:     u,
-		honorBuilder: NewHonorBuilder(m, a, d),
+		honorBuilder: NewHonorBuilder(source, a, d),
 	}
 }
 
@@ -112,12 +112,12 @@ func (b *ProfileBuilder) buildFramePaths(userFrames []service.RawUserFrame) (*mo
 		return nil, false
 	}
 
-	frame, err := b.masterdata.GetPlayerFrameByID(equippedID)
+	frame, err := b.source.GetPlayerFrameByID(equippedID)
 	if err != nil {
 		return nil, false
 	}
 
-	frameGroup, err := b.masterdata.GetPlayerFrameGroupByID(frame.PlayerFrameGroupID)
+	frameGroup, err := b.source.GetPlayerFrameGroupByID(frame.PlayerFrameGroupID)
 	if err != nil {
 		return nil, false
 	}
@@ -158,7 +158,7 @@ func (b *ProfileBuilder) buildPCards(userCards []service.RawUserCard, decks []se
 		if cid == 0 {
 			continue
 		}
-		card, err := b.masterdata.GetCardByID(cid)
+		card, err := b.source.GetCardByID(cid)
 		if err != nil {
 			continue
 		}
@@ -209,7 +209,7 @@ func (b *ProfileBuilder) buildHonors(rawData *service.RawUserData) []model.Honor
 	for _, ph := range selected {
 		rank := 0
 		// 尝试获取活动排名（为了将来可能的活动记录功能保留基础设施）
-		eventID := b.masterdata.GetEventIDByHonorID(ph.HonorID)
+		eventID := b.source.GetEventIDByHonorID(ph.HonorID)
 		if eventID > 0 {
 			for _, res := range rawData.UserEventResults {
 				if res.EventID == eventID {
@@ -220,10 +220,11 @@ func (b *ProfileBuilder) buildHonors(rawData *service.RawUserData) []model.Honor
 		}
 
 		query := model.HonorQuery{
-			HonorID:    ph.HonorID,
-			HonorLevel: ph.HonorLevel,
-			IsMain:     ph.Seq == 1,
-			Rank:       rank,
+			HonorID:          ph.HonorID,
+			HonorLevel:       ph.HonorLevel,
+			IsMain:           ph.Seq == 1,
+			Rank:             rank,
+			BondsHonorWordID: ph.BondsHonorWordId,
 		}
 
 		req, err := b.honorBuilder.BuildHonorRequest(query)
@@ -241,7 +242,7 @@ func (b *ProfileBuilder) buildHonors(rawData *service.RawUserData) []model.Honor
 			}
 
 			rank := 0
-			eventID := b.masterdata.GetEventIDByHonorID(h.HonorID)
+			eventID := b.source.GetEventIDByHonorID(h.HonorID)
 			if eventID > 0 {
 				for _, res := range rawData.UserEventResults {
 					if res.EventID == eventID {

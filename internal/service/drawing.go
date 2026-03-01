@@ -150,7 +150,107 @@ func (s *DrawingService) GenerateProfile(req interface{}) ([]byte, error) {
 	return s.callAPI("/api/pjsk/profile/", req)
 }
 
+// GenerateStampList draws stamp list panel.
+func (s *DrawingService) GenerateStampList(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/stamp/list", req)
+}
+
+// GenerateCharaBirthday draws character birthday panel.
+func (s *DrawingService) GenerateCharaBirthday(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/misc/chara-birthday", req)
+}
+
+// GenerateScoreControl draws score-control panel.
+func (s *DrawingService) GenerateScoreControl(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/score/control", req)
+}
+
+// GenerateCustomRoomScore draws custom-room score panel.
+func (s *DrawingService) GenerateCustomRoomScore(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/score/custom-room", req)
+}
+
+// GenerateMusicMeta draws music-meta panel.
+func (s *DrawingService) GenerateMusicMeta(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/score/music-meta", req)
+}
+
+// GenerateMusicBoard draws music-board panel.
+func (s *DrawingService) GenerateMusicBoard(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/score/music-board", req)
+}
+
+// GenerateDeckRecommend draws deck recommendation panel.
+func (s *DrawingService) GenerateDeckRecommend(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/deck/recommend", req)
+}
+
+// GenerateSKLine draws sk line panel.
+func (s *DrawingService) GenerateSKLine(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/sk/line", req)
+}
+
+// GenerateSKQuery draws sk query panel.
+func (s *DrawingService) GenerateSKQuery(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/sk/query", req)
+}
+
+// GenerateSKCheckRoom draws sk check-room panel.
+func (s *DrawingService) GenerateSKCheckRoom(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/sk/check-room", req)
+}
+
+// GenerateSKSpeed draws sk speed panel.
+func (s *DrawingService) GenerateSKSpeed(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/sk/speed", req)
+}
+
+// GenerateSKPlayerTrace draws sk player-trace panel.
+func (s *DrawingService) GenerateSKPlayerTrace(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/sk/player-trace", req)
+}
+
+// GenerateSKRankTrace draws sk rank-trace panel.
+func (s *DrawingService) GenerateSKRankTrace(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/sk/rank-trace", req)
+}
+
+// GenerateSKWinrate draws sk winrate panel.
+func (s *DrawingService) GenerateSKWinrate(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/sk/winrate", req)
+}
+
 // callAPI 统一的 HTTP 调用封装
+// GenerateMysekaiResource draws mysekai resource panel.
+func (s *DrawingService) GenerateMysekaiResource(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/mysekai/resource", req)
+}
+
+// GenerateMysekaiFixtureList draws mysekai fixture-list panel.
+func (s *DrawingService) GenerateMysekaiFixtureList(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/mysekai/fixture-list", req)
+}
+
+// GenerateMysekaiFixtureDetail draws mysekai fixture-detail panel.
+func (s *DrawingService) GenerateMysekaiFixtureDetail(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/mysekai/fixture-detail", req)
+}
+
+// GenerateMysekaiDoorUpgrade draws mysekai door-upgrade panel.
+func (s *DrawingService) GenerateMysekaiDoorUpgrade(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/mysekai/door-upgrade", req)
+}
+
+// GenerateMysekaiMusicRecord draws mysekai music-record panel.
+func (s *DrawingService) GenerateMysekaiMusicRecord(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/mysekai/music-record", req)
+}
+
+// GenerateMysekaiTalkList draws mysekai talk-list panel.
+func (s *DrawingService) GenerateMysekaiTalkList(req interface{}) ([]byte, error) {
+	return s.callAPI("/api/pjsk/mysekai/talk-list", req)
+}
+
 func (s *DrawingService) callAPI(endpoint string, reqBody interface{}) ([]byte, error) {
 	url := s.baseURL + endpoint
 

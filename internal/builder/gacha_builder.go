@@ -2,6 +2,7 @@ package builder
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -19,17 +20,17 @@ const gachaEndPaddingMillis = int64(time.Minute / time.Millisecond)
 
 // GachaBuilder 负责卡池相关的数据组装
 type GachaBuilder struct {
-	masterdata *service.MasterDataService
-	assets     *asset.AssetHelper
-	assetDir   string
+	source   service.GachaDataSource
+	assets   *asset.AssetHelper
+	assetDir string
 }
 
 // NewGachaBuilder 创建 GachaBuilder
-func NewGachaBuilder(masterdata *service.MasterDataService, assets *asset.AssetHelper, assetDir string) *GachaBuilder {
+func NewGachaBuilder(source service.GachaDataSource, assets *asset.AssetHelper, assetDir string) *GachaBuilder {
 	return &GachaBuilder{
-		masterdata: masterdata,
-		assets:     assets,
-		assetDir:   assetDir,
+		source:   source,
+		assets:   assets,
+		assetDir: assetDir,
 	}
 }
 
@@ -46,7 +47,7 @@ func (b *GachaBuilder) BuildGachaListRequest(query model.GachaListQuery) (*model
 
 	now := time.Now()
 	var filtered []*masterdata.Gacha
-	all := b.masterdata.GetGachas()
+	all := b.source.GetGachas()
 
 	cardFilter := query.CardID
 	keyword := strings.ToLower(strings.TrimSpace(query.Keyword))
@@ -69,6 +70,19 @@ func (b *GachaBuilder) BuildGachaListRequest(query model.GachaListQuery) (*model
 		}
 		if keyword != "" && !strings.Contains(strings.ToLower(g.Name), keyword) {
 			continue
+		}
+		if query.IsRerelease && !strings.Contains(strings.ToLower(g.Name), "it's back") &&
+			!strings.Contains(strings.ToLower(g.Name), "复刻") {
+			continue
+		}
+		if query.IsRecall && !strings.Contains(strings.ToLower(g.Name), "回响") &&
+			!strings.Contains(strings.ToLower(g.Name), "colorful festival") {
+			continue
+		}
+		if query.OnlyCurrent {
+			if time.UnixMilli(g.StartAt).After(now) || time.UnixMilli(g.EndAt).Before(now) {
+				continue
+			}
 		}
 		filtered = append(filtered, g)
 	}
@@ -96,7 +110,7 @@ func (b *GachaBuilder) BuildGachaListRequest(query model.GachaListQuery) (*model
 	selected := filtered[startIndex:endIndex]
 	region := query.Region
 	if region == "" {
-		region = b.masterdata.GetRegion()
+		region = b.source.DefaultRegion()
 	}
 
 	var briefs []model.GachaBrief
@@ -129,14 +143,14 @@ func (b *GachaBuilder) BuildGachaDetailRequest(query model.GachaDetailQuery) (*m
 	if query.GachaID == 0 {
 		return nil, fmt.Errorf("gacha id is required")
 	}
-	gacha, err := b.masterdata.GetGachaByID(query.GachaID)
+	gacha, err := b.source.GetGachaByID(query.GachaID)
 	if err != nil {
 		return nil, err
 	}
 
 	region := query.Region
 	if region == "" {
-		region = b.masterdata.GetRegion()
+		region = b.source.DefaultRegion()
 	}
 
 	rarityCounts := map[string]int{
@@ -173,7 +187,7 @@ func (b *GachaBuilder) BuildGachaDetailRequest(query model.GachaDetailQuery) (*m
 	}
 
 	for _, detail := range gacha.GachaDetails {
-		card, err := b.masterdata.GetCardByID(detail.CardID)
+		card, err := b.source.GetCardByID(detail.CardID)
 		if err != nil {
 			continue
 		}
@@ -197,7 +211,7 @@ func (b *GachaBuilder) BuildGachaDetailRequest(query model.GachaDetailQuery) (*m
 		card := cardCache[cardID]
 		if card == nil {
 			var err error
-			card, err = b.masterdata.GetCardByID(cardID)
+			card, err = b.source.GetCardByID(cardID)
 			if err != nil {
 				continue
 			}
@@ -330,7 +344,6 @@ func (b *GachaBuilder) buildGachaLogoPath(gacha *masterdata.Gacha) string {
 		if assetName := strings.TrimSpace(gacha.AssetBundleName); assetName != "" {
 			// 优先匹配具体文件夹下的 logo
 			candidates = append(candidates, filepath.Join("gacha", assetName, "logo", "logo.png"))
-			candidates = append(candidates, filepath.Join("gacha", assetName+"_rip", "logo", "logo.png"))
 
 			// 尝试匹配通用 logo 目录下的前缀文件
 			candidates = append(candidates, filepath.Join("logo", assetName+".png"))
@@ -351,10 +364,17 @@ func (b *GachaBuilder) buildGachaLogoPath(gacha *masterdata.Gacha) string {
 		candidates = append(candidates, filepath.Join("logo", fmt.Sprintf("banner_logo%d.png", gacha.ID)))
 	}
 
-	// 最后才回退到硬编码的 63
-	candidates = append(candidates, filepath.Join("logo", "banner_logo63.png"))
-
-	return asset.ResolveAssetPath(b.assets, b.assetDir, candidates...)
+	for _, rel := range candidates {
+		if strings.TrimSpace(rel) == "" {
+			continue
+		}
+		if b.assetDir != "" {
+			if _, err := os.Stat(filepath.Join(b.assetDir, rel)); err == nil {
+				return strings.ReplaceAll(filepath.ToSlash(rel), "\\", "/")
+			}
+		}
+	}
+	return ""
 }
 
 func (b *GachaBuilder) buildGachaBannerPath(gacha *masterdata.Gacha) string {
@@ -367,7 +387,6 @@ func (b *GachaBuilder) buildGachaBannerPath(gacha *masterdata.Gacha) string {
 	candidates := []string{
 		// 优先从 ID 对应的文件夹找
 		filepath.Join("home", "banner", "banner_gacha"+idStr, "banner_gacha"+idStr+".png"),
-		filepath.Join("home", "banner", "banner_gacha"+idStr+"_rip", "banner_gacha"+idStr+".png"),
 
 		// 配合 ab_ 前缀文件夹
 		filepath.Join("gacha", "ab_gacha_"+idStr, "screen", "texture", "bg_gacha"+idStr+".png"),
@@ -379,7 +398,17 @@ func (b *GachaBuilder) buildGachaBannerPath(gacha *masterdata.Gacha) string {
 		// 兜底到 gacha 根目录下的简单命名
 		filepath.Join("gacha", "banner_gacha"+idStr+".png"),
 	}
-	return asset.ResolveAssetPath(b.assets, b.assetDir, candidates...)
+	for _, rel := range candidates {
+		if strings.TrimSpace(rel) == "" {
+			continue
+		}
+		if b.assetDir != "" {
+			if _, err := os.Stat(filepath.Join(b.assetDir, rel)); err == nil {
+				return strings.ReplaceAll(filepath.ToSlash(rel), "\\", "/")
+			}
+		}
+	}
+	return ""
 }
 
 func (b *GachaBuilder) buildGachaThumbnail(card *masterdata.Card) model.CardFullThumbnailRequest {

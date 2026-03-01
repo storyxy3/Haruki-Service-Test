@@ -2,18 +2,19 @@ package service
 
 import (
 	"fmt"
-	"Haruki-Service-API/pkg/masterdata"
 	"time"
+
+	"Haruki-Service-API/pkg/masterdata"
 )
 
 // EventSearchService 活动搜索服务
 type EventSearchService struct {
-	repo   *MasterDataService
+	repo   EventDataSource
 	parser *EventParser
 }
 
 // NewEventSearchService 创建活动搜索服务
-func NewEventSearchService(repo *MasterDataService, parser *EventParser) *EventSearchService {
+func NewEventSearchService(repo EventDataSource, parser *EventParser) *EventSearchService {
 	return &EventSearchService{
 		repo:   repo,
 		parser: parser,

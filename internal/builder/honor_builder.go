@@ -2,6 +2,8 @@ package builder
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -13,16 +15,32 @@ import (
 
 // HonorBuilder 负责构建 HonorRequest
 type HonorBuilder struct {
-	masterdata *service.MasterDataService
-	assets     *asset.AssetHelper
-	assetDir   string
+	source   service.HonorDataSource
+	assets   *asset.AssetHelper
+	assetDir string
 }
 
-func NewHonorBuilder(m *service.MasterDataService, a *asset.AssetHelper, d string) *HonorBuilder {
+func (b *HonorBuilder) existsInPrimary(rel string) bool {
+	rel = strings.TrimSpace(rel)
+	if rel == "" {
+		return false
+	}
+	if b.assetDir != "" {
+		if _, err := os.Stat(filepath.Join(b.assetDir, rel)); err == nil {
+			return true
+		}
+	}
+	if b.assets != nil {
+		return b.assets.FirstExisting(rel) != ""
+	}
+	return false
+}
+
+func NewHonorBuilder(source service.HonorDataSource, a *asset.AssetHelper, d string) *HonorBuilder {
 	return &HonorBuilder{
-		masterdata: m,
-		assets:     a,
-		assetDir:   d,
+		source:   source,
+		assets:   a,
+		assetDir: d,
 	}
 }
 
@@ -31,8 +49,8 @@ func (b *HonorBuilder) BuildHonorRequest(query model.HonorQuery) (model.HonorReq
 		IsMainHonor: query.IsMain,
 	}
 
-	_, errNormal := b.masterdata.GetHonorByID(query.HonorID)
-	bondsHonor, errBonds := b.masterdata.GetBondsHonorByID(query.HonorID)
+	_, errNormal := b.source.GetHonorByID(query.HonorID)
+	bondsHonor, errBonds := b.source.GetBondsHonorByID(query.HonorID)
 
 	isNormal := errNormal == nil
 	isBonds := errBonds == nil
@@ -46,7 +64,7 @@ func (b *HonorBuilder) BuildHonorRequest(query model.HonorQuery) (model.HonorReq
 			return req, err
 		}
 	} else if isBonds {
-		if err := b.buildBondsHonorRequest(&req, bondsHonor, query.HonorLevel); err != nil {
+		if err := b.buildBondsHonorRequest(&req, bondsHonor, query.HonorLevel, query.BondsHonorWordID); err != nil {
 			return req, err
 		}
 	}
@@ -60,8 +78,8 @@ func (b *HonorBuilder) BuildHonorRequest(query model.HonorQuery) (model.HonorReq
 }
 
 func (b *HonorBuilder) buildNormalHonorRequest(req *model.HonorRequest, honorID int, honorLevel int) error {
-	honor, _ := b.masterdata.GetHonorByID(honorID)
-	group, err := b.masterdata.GetHonorGroupByID(honor.GroupID)
+	honor, _ := b.source.GetHonorByID(honorID)
+	group, err := b.source.GetHonorGroupByID(honor.GroupID)
 	if err != nil {
 		return fmt.Errorf("honor group %d not found for honor %d: %w", honor.GroupID, honorID, err)
 	}
@@ -111,6 +129,20 @@ func (b *HonorBuilder) buildNormalHonorRequest(req *model.HonorRequest, honorID 
 	} else {
 		honorImgPath = fmt.Sprintf("honor/%s/degree_%s.png", assetName, ms)
 	}
+	// Some event/WL honor bundles only provide rank_main/rank_sub without degree_*.
+	if gtype == "event" || gtype == "wl_event" {
+		if !b.existsInPrimary(honorImgPath) {
+			var fallback string
+			if group.BackgroundAssetbundleName != nil && *group.BackgroundAssetbundleName != "" {
+				fallback = fmt.Sprintf("honor/%s/rank_%s.png", *group.BackgroundAssetbundleName, ms)
+			} else {
+				fallback = fmt.Sprintf("honor/%s/rank_%s.png", assetName, ms)
+			}
+			if b.existsInPrimary(fallback) {
+				honorImgPath = fallback
+			}
+		}
+	}
 	req.HonorImgPath = &honorImgPath
 
 	// 只有活动和排位有额外的 Rank 图层
@@ -126,10 +158,10 @@ func (b *HonorBuilder) buildNormalHonorRequest(req *model.HonorRequest, honorID 
 			rel1 := fmt.Sprintf("honor/%s/rank_%s.png", assetName, ms)
 			rel2 := fmt.Sprintf("honor/%s/degree_%s.png", assetName, ms)
 
-			if found := b.assets.FirstExisting(rel1); found != "" {
+			if b.existsInPrimary(rel1) {
 				rankImgPath = rel1
 			} else if honorImgPath != rel2 { // 避免 rank_img 和 background 重复
-				if found := b.assets.FirstExisting(rel2); found != "" {
+				if b.existsInPrimary(rel2) {
 					rankImgPath = rel2
 				}
 			}
@@ -200,7 +232,7 @@ func (b *HonorBuilder) buildNormalHonorRequest(req *model.HonorRequest, honorID 
 	return nil
 }
 
-func (b *HonorBuilder) buildBondsHonorRequest(req *model.HonorRequest, honor *masterdata.BondsHonor, honorLevel int) error {
+func (b *HonorBuilder) buildBondsHonorRequest(req *model.HonorRequest, honor *masterdata.BondsHonor, honorLevel int, bondsHonorWordID int) error {
 	htype := "bonds"
 	req.HonorType = &htype
 	rarity := honor.HonorRarity
@@ -221,10 +253,10 @@ func (b *HonorBuilder) buildBondsHonorRequest(req *model.HonorRequest, honor *ma
 	}
 
 	var cid1, cid2 int
-	if unit1, ok := b.masterdata.GetGameCharacterUnitByID(cuid1); ok {
+	if unit1, ok := b.source.GetGameCharacterUnitByID(cuid1); ok {
 		cid1 = unit1.GameCharacterID
 	}
-	if unit2, ok := b.masterdata.GetGameCharacterUnitByID(cuid2); ok {
+	if unit2, ok := b.source.GetGameCharacterUnitByID(cuid2); ok {
 		cid2 = unit2.GameCharacterID
 	}
 
@@ -255,12 +287,22 @@ func (b *HonorBuilder) buildBondsHonorRequest(req *model.HonorRequest, honor *ma
 	req.FrameImgPath = &framePath
 
 	if req.IsMainHonor {
-		hwid := honor.ID
+		hid := honor.ID
+		hwid := bondsHonorWordID
+		if hwid == 0 {
+			hwid = hid
+		}
+
 		var wordbundlename string
-		if hwid%100 < 50 {
+		if absInt(hid-hwid) < 100 {
 			wordbundlename = fmt.Sprintf("honorname_%02d%02d_%02d_01", cid1, cid2, hwid%100)
 		} else {
-			wordbundlename = fmt.Sprintf("honorname_%02d%02d_default_%02d%02d_01", cid1, cid2, cuid1, cuid2)
+			// Follow lunabot's default branch rule for bonds honor words.
+			if hwid%10 == 1 {
+				wordbundlename = fmt.Sprintf("honorname_%02d%02d_default_%02d%02d_01", cid1, cid2, cuid1, cid2)
+			} else {
+				wordbundlename = fmt.Sprintf("honorname_%02d%02d_default_%02d%02d_01", cid1, cid2, cid2, cuid1)
+			}
 		}
 		wordPath := fmt.Sprintf("bonds_honor/word/%s.png", wordbundlename)
 		req.WordImgPath = &wordPath
@@ -272,4 +314,11 @@ func (b *HonorBuilder) buildBondsHonorRequest(req *model.HonorRequest, honor *ma
 	req.Lv6ImgPath = &lv6Img
 
 	return nil
+}
+
+func absInt(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
 }

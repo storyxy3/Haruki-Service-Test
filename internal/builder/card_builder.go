@@ -3,6 +3,7 @@ package builder
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"Haruki-Service-API/internal/model"
 	"Haruki-Service-API/internal/service"
@@ -12,6 +13,9 @@ import (
 
 // CardBuilder 专门负责构建供 DrawingAPI 消费的 Card 模块 JSON Payload
 type CardBuilder struct {
+	cards         service.CardDataSource
+	secondary     service.CardDataSource
+	events        service.EventDataSource
 	masterdata    *service.MasterDataService
 	assets        *asset.AssetHelper
 	assetDir      string
@@ -20,9 +24,12 @@ type CardBuilder struct {
 }
 
 // NewCardBuilder 初始化新卡牌组装器
-func NewCardBuilder(m *service.MasterDataService, a *asset.AssetHelper, d string, s *service.CardSearchService, u *service.UserDataService) *CardBuilder {
+func NewCardBuilder(cards service.CardDataSource, secondary service.CardDataSource, events service.EventDataSource, master *service.MasterDataService, a *asset.AssetHelper, d string, s *service.CardSearchService, u *service.UserDataService) *CardBuilder {
 	return &CardBuilder{
-		masterdata:    m,
+		cards:         cards,
+		secondary:     secondary,
+		events:        events,
+		masterdata:    master,
 		assets:        a,
 		assetDir:      d,
 		searchService: s,
@@ -38,78 +45,65 @@ func (b *CardBuilder) BuildCardDetailRequestBody(
 ) (*model.CardDetailRequest, error) {
 
 	// 1. 构建基础卡牌信息
-	cardInfo := b.BuildCardBasic(card)
+	cardInfo := b.BuildCardBasic(card, region)
 
 	// 2. 获取活动信息
 	var eventInfo *model.CardEventInfo
 	var eventAttrPath, eventUnitPath, eventCharaPath string
 
-	if event, err := b.masterdata.GetEventByCardID(card.ID); err == nil && event != nil {
-		eventInfo = &model.CardEventInfo{
-			EventID:         event.ID,
-			EventName:       event.Name,
-			StartAt:         event.StartAt,
-			EndAt:           event.AggregateAt + 1000,
-			EventBannerPath: b.buildEventBannerPath(event.AssetBundleName),
-		}
-
-		// 获取活动加成信息
-		if bonuses, err := b.masterdata.GetEventDeckBonuses(event.ID); err == nil {
-			// 1. Attribute Bonus
-			for _, bonus := range bonuses {
-				if bonus.CardAttr != "" {
-					eventAttrPath = asset.ResolveAssetPath(b.assets, b.assetDir, filepath.Join("card", fmt.Sprintf("attr_icon_%s.png", bonus.CardAttr)))
-					eventInfo.BonusAttr = bonus.CardAttr // Set BonusAttr to trigger display
-					// break // REMOVED: Lunabot logic iterates all and uses the last one.
-				}
+	if b.events != nil {
+		if event, err := b.events.GetEventByCardID(card.ID); err == nil && event != nil {
+			eventInfo = &model.CardEventInfo{
+				EventID:         event.ID,
+				EventName:       event.Name,
+				StartAt:         event.StartAt,
+				EndAt:           event.AggregateAt + 1000,
+				EventBannerPath: b.buildEventBannerPath(event.AssetBundleName),
 			}
 
-			// 2. Unit/Character Bonus
-			// Logic: specific chara ? or unit ?
-
-			// Check if it is a "Ban Event" (Unit Event)
-			// Lunabot logic: If all bonuses with a unit ID belong to the same unit -> Ban Event.
-			uniqueUnits := make(map[string]struct{})
-			for _, bonus := range bonuses {
-				if bonus.GameCharacterUnitID > 0 {
-					if gcu, err := b.masterdata.GetGameCharacterUnit(bonus.GameCharacterUnitID); err == nil {
-						uniqueUnits[gcu.Unit] = struct{}{}
+			if bonuses, err := b.events.GetEventDeckBonuses(event.ID); err == nil {
+				for _, bonus := range bonuses {
+					if bonus.CardAttr != "" {
+						eventAttrPath = asset.ResolveAssetPath(b.assets, b.assetDir, filepath.Join("card", fmt.Sprintf("attr_icon_%s.png", bonus.CardAttr)))
+						eventInfo.BonusAttr = bonus.CardAttr
 					}
 				}
-			}
 
-			isUnitEvent := len(uniqueUnits) == 1
-			var eventUnit string
-			if isUnitEvent {
-				for unit := range uniqueUnits {
-					eventUnit = unit // Get the single unit
-				}
-			}
-
-			if isUnitEvent {
-				// Set Unit Icon
-				unitIconName := b.getUnitIconName(eventUnit)
-				if unitIconName != "" {
-					eventUnitPath = asset.ResolveAssetPath(b.assets, b.assetDir, filepath.Join("unit", unitIconName+".png"))
-					eventInfo.Unit = eventUnit // Set Unit to trigger display
+				uniqueUnits := make(map[string]struct{})
+				for _, bonus := range bonuses {
+					if bonus.GameCharacterUnitID > 0 {
+						if gcu, err := b.events.GetGameCharacterUnit(bonus.GameCharacterUnitID); err == nil {
+							uniqueUnits[gcu.Unit] = struct{}{}
+						}
+					}
 				}
 
-				// Set Banner Character Icon
-				// Only for Unit Events
-				if bannerCID, err := b.masterdata.GetEventBannerCharacterID(event.ID); err == nil {
-					eventCharaPath = b.BuildCharacterIconPath(bannerCID, eventUnit)
-					eventInfo.BannerCID = bannerCID
+				isUnitEvent := len(uniqueUnits) == 1
+				var eventUnit string
+				if isUnitEvent {
+					for unit := range uniqueUnits {
+						eventUnit = unit
+					}
 				}
-			} else {
-				// Mixed Event: Do not show Unit or Chara icon. Only Attribute.
-				// Explicitly do nothing here. eventUnitPath and eventCharaPath default to empty.
+
+				if isUnitEvent {
+					unitIconName := b.getUnitIconName(eventUnit)
+					if unitIconName != "" {
+						eventUnitPath = asset.ResolveAssetPath(b.assets, b.assetDir, filepath.Join("unit", unitIconName+".png"))
+						eventInfo.Unit = eventUnit
+					}
+					if bannerCID, err := b.events.GetEventBannerCharacterID(event.ID); err == nil {
+						eventCharaPath = b.BuildCharacterIconPath(bannerCID, eventUnit)
+						eventInfo.BannerCID = bannerCID
+					}
+				}
 			}
 		}
 	}
 
 	// 3. 获取卡池信息
 	var gachaInfo *model.CardGachaInfo
-	if gacha, err := b.masterdata.GetGachaByCardID(card.ID); err == nil && gacha != nil {
+	if gacha, err := b.cards.GetGachaByCardID(card.ID); err == nil && gacha != nil {
 		gachaInfo = &model.CardGachaInfo{
 			GachaID:         gacha.ID,
 			GachaName:       gacha.Name,
@@ -152,7 +146,7 @@ func (b *CardBuilder) BuildCardDetailRequestBody(
 }
 
 // BuildCardBasic 构建通用基础卡牌信息
-func (b *CardBuilder) BuildCardBasic(card *masterdata.Card) model.CardBasic {
+func (b *CardBuilder) BuildCardBasic(card *masterdata.Card, region string) model.CardBasic {
 	cardInfo := model.CardBasic{
 		CardID:          card.ID,
 		CharacterID:     card.CharacterID,
@@ -167,23 +161,23 @@ func (b *CardBuilder) BuildCardBasic(card *masterdata.Card) model.CardBasic {
 	}
 
 	// 获取角色信息
-	if char, err := b.masterdata.GetCharacterByID(card.CharacterID); err == nil && char != nil {
+	if char, err := b.cards.GetCharacterByID(card.CharacterID); err == nil && char != nil {
 		cardInfo.CharacterName = char.FirstName + char.GivenName
 	}
 	// Unit logic
-	if unit, err := b.masterdata.GetUnitByCardID(card.ID); err == nil {
+	if unit, err := b.cards.GetUnitByCardID(card.ID); err == nil {
 		cardInfo.Unit = unit
 	}
 
 	// 获取供给类型
-	cardInfo.SupplyType = b.masterdata.GetCardSupplyType(card)
+	cardInfo.SupplyType = b.cards.GetCardSupplyType(card)
 
 	// 获取技能信息
-	if skill, err := b.masterdata.GetSkillByID(card.SkillID); err == nil && skill != nil {
+	if skill, err := b.cards.GetSkillByID(card.SkillID); err == nil && skill != nil {
 		cardInfo.Skill = &model.CardSkill{
 			SkillID:           skill.ID,
 			SkillName:         card.CardSkillName,
-			SkillDetail:       b.masterdata.FormatSkillDescription(skill, card.CharacterID),
+			SkillDetail:       b.buildDualSkillDetail(card, skill, region),
 			SkillType:         skill.DescriptionSpriteName,
 			SkillTypeIconPath: b.buildSkillTypeIconPath(skill.DescriptionSpriteName),
 		}
@@ -191,11 +185,11 @@ func (b *CardBuilder) BuildCardBasic(card *masterdata.Card) model.CardBasic {
 
 	// Handle Special Training Skill (Fes Cards)
 	if card.SpecialTrainingSkillId > 0 {
-		if spSkill, err := b.masterdata.GetSkillByID(card.SpecialTrainingSkillId); err == nil && spSkill != nil {
+		if spSkill, err := b.cards.GetSkillByID(card.SpecialTrainingSkillId); err == nil && spSkill != nil {
 			cardInfo.SpecialSkillInfo = &model.CardSkill{
 				SkillID:           spSkill.ID,
 				SkillName:         card.SpecialTrainingSkillName,
-				SkillDetail:       b.masterdata.FormatSkillDescription(spSkill, card.CharacterID),
+				SkillDetail:       b.buildDualSkillDetail(card, spSkill, region),
 				SkillType:         spSkill.DescriptionSpriteName,
 				SkillTypeIconPath: b.buildSkillTypeIconPath(spSkill.DescriptionSpriteName),
 			}
@@ -210,7 +204,7 @@ func (b *CardBuilder) BuildCardListRequest(cardIDs []int, region string) (*model
 	var cards []model.CardBasic
 
 	for _, id := range cardIDs {
-		card, err := b.masterdata.GetCardByID(id)
+		card, err := b.cards.GetCardByID(id)
 		if err != nil {
 			// 如果卡牌不存在，跳过或报错？这里选择跳过
 			fmt.Printf("[WARN] Card ID %d not found\n", id)
@@ -220,7 +214,7 @@ func (b *CardBuilder) BuildCardListRequest(cardIDs []int, region string) (*model
 		// 基础卡牌信息
 		// 注意：DrawingAPI 已修改为会绘制 ThumbnailInfo 中的所有图片
 		// 因此不需要拆分特训前/后为两个对象，只需传一个包含完整 ThumbnailInfo 的对象即可
-		baseCard := b.BuildCardBasic(card)
+		baseCard := b.BuildCardBasic(card, region)
 
 		// 适配 DrawingAPI 列表逻辑：将 "常驻" 转换为 "normal" 以避免框体标黄
 		if baseCard.SupplyType == "常驻" {
@@ -281,6 +275,51 @@ func (b *CardBuilder) calculatePower(card *masterdata.Card) *model.CardPower {
 	}
 }
 
+func (b *CardBuilder) buildDualSkillDetail(card *masterdata.Card, skill *masterdata.Skill, region string) string {
+	if card == nil || skill == nil {
+		return ""
+	}
+	var lines []string
+	primary := ""
+	if b.cards != nil {
+		primary = strings.TrimSpace(b.cards.FormatSkillDescription(skill, card.CharacterID))
+	}
+	if primary == "" && b.masterdata != nil {
+		if baseSkill, err := b.masterdata.GetSkillByID(skill.ID); err == nil && baseSkill != nil {
+			primary = strings.TrimSpace(b.masterdata.FormatSkillDescription(baseSkill, card.CharacterID))
+		}
+	}
+	if primary != "" {
+		lines = append(lines, primary)
+	}
+	if strings.ToLower(strings.TrimSpace(region)) == "jp" && b.secondary != nil {
+		if translated, err := b.secondary.GetSkillByID(skill.ID); err == nil && translated != nil {
+			cnLine := strings.TrimSpace(b.secondary.FormatSkillDescription(translated, card.CharacterID))
+			if cnLine != "" {
+				lines = append(lines, cnLine)
+			}
+		}
+	}
+	return combineSkillLines(lines...)
+}
+
+func combineSkillLines(lines ...string) string {
+	var ordered []string
+	seen := make(map[string]struct{})
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if _, ok := seen[line]; ok {
+			continue
+		}
+		seen[line] = struct{}{}
+		ordered = append(ordered, line)
+	}
+	return strings.Join(ordered, "\n")
+}
+
 func (b *CardBuilder) getDetailedProfile(region string) *model.DetailedProfileCardRequest {
 	if b.userData != nil {
 		if profile := b.userData.DetailedProfile(region); profile != nil {
@@ -294,9 +333,7 @@ func (b *CardBuilder) getDetailedProfile(region string) *model.DetailedProfileCa
 // 根据实际资源文件结构
 func (b *CardBuilder) buildCardImagePaths(card *masterdata.Card) []string {
 	// 实际路径格式:
-	// character/member/{assetBundleName}/{assetBundleName}_rip/card_normal.png
-	// 或者直接 character/member/{assetBundleName}_rip/card_normal.png
-	// 实际路径格式验证: D:\pjskdata\data\character\member\res005_no047\card_normal.png (No _rip suffix)
+	// 实际路径格式: character/member/{assetBundleName}/card_normal.png
 	basePath := fmt.Sprintf("%s/character/member/%s", b.assetDir, card.AssetBundleName)
 
 	paths := []string{
@@ -315,16 +352,18 @@ func (b *CardBuilder) buildCardImagePaths(card *masterdata.Card) []string {
 func (b *CardBuilder) buildCostumeImagePaths(card *masterdata.Card) []string {
 	costumes := []string{}
 	// Use the plural method to get all costumes
-	costume3ds, err := b.masterdata.GetCostume3dsByCardID(card.ID)
+	costume3ds, err := b.cards.GetCostume3dsByCardID(card.ID)
 	if err != nil || len(costume3ds) == 0 {
 		return costumes
 	}
 
 	for _, costume := range costume3ds {
-		// Costume path: thumbnail/costume_rip/{assetBundleName}.png
-		// Manual verification needed. Based on card_190_info.md:
-		// D:\pjskdata\data\thumbnail\costume_rip\cos0080_unique_head.png
-		path := filepath.ToSlash(filepath.Join(b.assetDir, "thumbnail", "costume_rip", costume.AssetBundleName+".png"))
+		path := asset.ResolveAssetPath(b.assets, b.assetDir,
+			filepath.Join("thumbnail", "costume", costume.AssetBundleName+".png"),
+		)
+		if path == "" {
+			path = filepath.ToSlash(filepath.Join(b.assetDir, "thumbnail", "costume", costume.AssetBundleName+".png"))
+		}
 		costumes = append(costumes, path)
 	}
 
@@ -369,7 +408,6 @@ func (b *CardBuilder) buildEventBannerPath(assetBundleName string) string {
 		return ""
 	}
 	candidates := []string{
-		filepath.Join("home", "banner", fmt.Sprintf("%s_rip", assetBundleName), assetBundleName+".png"),
 		filepath.Join("home", "banner", assetBundleName, assetBundleName+".png"),
 		filepath.Join("event", assetBundleName, "banner.png"),
 	}
@@ -383,7 +421,6 @@ func (b *CardBuilder) buildGachaBannerPath(gachaID int) string {
 	}
 	candidates := []string{
 		filepath.Join("home", "banner", fmt.Sprintf("banner_gacha%d", gachaID), fmt.Sprintf("banner_gacha%d.png", gachaID)),
-		filepath.Join("home", "banner", fmt.Sprintf("banner_gacha%d_rip", gachaID), fmt.Sprintf("banner_gacha%d.png", gachaID)),
 		filepath.Join("gacha", fmt.Sprintf("banner_gacha%d.png", gachaID)),
 	}
 	return asset.ResolveAssetPath(b.assets, b.assetDir, candidates...)

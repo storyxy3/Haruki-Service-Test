@@ -12,6 +12,8 @@ type Extractor struct {
 	nicknames map[string]int // 昵称 -> CharacterID
 }
 
+var supportedRegions = []string{"jp", "en", "cn", "tw", "kr"}
+
 // NewExtractor 创建提取器
 func NewExtractor(nicknames map[string]int) *Extractor {
 	return &Extractor{
@@ -84,6 +86,34 @@ func (e *Extractor) ExtractRarity(text string) ExtractResult[string] {
 		}
 	}
 	return ExtractResult[string]{Value: "", Remaining: text, Found: false}
+}
+
+func (e *Extractor) ExtractRegionPrefix(text string) ExtractResult[string] {
+	trimmed := strings.TrimSpace(text)
+	if !strings.HasPrefix(trimmed, "/") {
+		return ExtractResult[string]{Value: "", Remaining: text, Found: false}
+	}
+	afterSlash := trimmed[1:]
+	lower := strings.ToLower(afterSlash)
+	for _, region := range supportedRegions {
+		if strings.HasPrefix(lower, region) {
+			nextIdx := len(region)
+			if len(afterSlash) > nextIdx && isAsciiLetter(afterSlash[nextIdx]) {
+				continue
+			}
+			remaining := "/" + strings.TrimLeftFunc(afterSlash[nextIdx:], isSpaceOrTab)
+			return ExtractResult[string]{Value: region, Remaining: remaining, Found: true}
+		}
+	}
+	return ExtractResult[string]{Value: "", Remaining: text, Found: false}
+}
+
+func isAsciiLetter(ch byte) bool {
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')
+}
+
+func isSpaceOrTab(r rune) bool {
+	return r == ' ' || r == '\t'
 }
 
 // -----------------------------------------------------------------------------

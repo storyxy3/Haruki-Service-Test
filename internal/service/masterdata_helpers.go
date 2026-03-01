@@ -112,25 +112,14 @@ func (s *MasterDataService) GetCostume3dsByCardID(cardID int) ([]*masterdata.Cos
 // GetCardSupplyType 获取卡牌的供给类型
 func (s *MasterDataService) GetCardSupplyType(card *masterdata.Card) string {
 	if card.CardRarityType == "rarity_birthday" {
-		return "生日"
+		return formatSupplyType("birthday")
 	}
 	if card.CardSupplyID != 0 {
 		if supply, ok := s.cardSupplyByID[card.CardSupplyID]; ok {
-			switch supply.CardSupplyType {
-			case "term_limited":
-				return "期间限定"
-			case "colorful_festival_limited":
-				return "CFes限定"
-			case "bloom_festival_limited":
-				return "BFes限定"
-			case "unit_event_limited":
-				return "WL限定"
-			case "collaboration_limited":
-				return "联动限定"
-			}
+			return formatSupplyType(supply.CardSupplyType)
 		}
 	}
-	return "常驻"
+	return formatSupplyType("")
 }
 
 // GetEventBannerCharacterID 获取活动的 Banner 角色 ID
@@ -213,30 +202,8 @@ func (s *MasterDataService) FilterCards(info *CardQueryInfo) []*masterdata.Card 
 				continue
 			}
 		}
-		if info.SupplyType != "" {
-			supply := s.GetCardSupplyType(&card)
-			matched := false
-			switch info.SupplyType {
-			case "festival":
-				if supply == "CFes限定" || supply == "BFes限定" {
-					matched = true
-				}
-			case "limited":
-				if supply != "常驻" && supply != "生日" {
-					matched = true
-				}
-			case "normal":
-				if supply == "常驻" {
-					matched = true
-				}
-			case "birthday":
-				if supply == "生日" {
-					matched = true
-				}
-			}
-			if !matched {
-				continue
-			}
+		if info.SupplyType != "" && !matchesSupplyFilter(info.SupplyType, s.GetCardSupplyType(&card)) {
+			continue
 		}
 		if info.Year != 0 {
 			t := time.Unix(card.ReleaseAt/1000, 0)

@@ -1,0 +1,45 @@
+server:
+  host: "0.0.0.0"
+  port: 8080
+
+drawing_api:
+  base_url: "http://localhost:28000"
+  timeout: 30s
+  retry_count: 3
+  output_dir: "D:/github/testfile"
+
+masterdata:
+  dir: "D:/github/haruki-sekai-master/master"
+  cache_enabled: true
+
+assets:
+  dir: "Z:/pjskdata/Data"
+
+user_data:
+  path: "D:/github/testfile/user.json"
+
+log:
+  level: "info"
+  format: "json"
+
+haruki_cloud:
+  sekai_db:
+    driver: "postgres"
+    host: "localhost"
+    port: 5432
+    database: "master_data"
+    user: "haruki"
+    password: "sszh2015"
+    sslmode: "disable"
+  use_local_event_source: false
+  use_local_card_source: false
+  region: "jp"
+  secondary_region: "cn"
+
+deck_recommend:
+  enabled: false
+  timeout: 60s
+  default_algs: ["dfs", "sa", "ga"]
+  servers:
+    - url: "http://127.0.0.1:45556"
+      weight: 1

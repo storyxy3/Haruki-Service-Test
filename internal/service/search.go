@@ -7,15 +7,25 @@ import (
 
 // CardSearchService 负责卡牌搜索逻辑 (Orchestrator)
 type CardSearchService struct {
-	repo   *MasterDataService // Data Access Layer
-	parser *CardParser        // Parsing Logic
+	repo   CardDataSource // Data Access Layer
+	parser *CardParser    // Parsing Logic
 }
 
 // NewCardSearchService 创建卡牌搜索服务
-func NewCardSearchService(repo *MasterDataService, parser *CardParser) *CardSearchService {
+func NewCardSearchService(repo CardDataSource, parser *CardParser) *CardSearchService {
 	return &CardSearchService{
 		repo:   repo,
 		parser: parser,
+	}
+}
+
+func (s *CardSearchService) CloneWithRepo(repo CardDataSource) *CardSearchService {
+	if s == nil {
+		return nil
+	}
+	return &CardSearchService{
+		repo:   repo,
+		parser: s.parser,
 	}
 }
 
@@ -45,7 +55,10 @@ func (s *CardSearchService) Search(query string) (*masterdata.Card, error) {
 		case QueryTypeFilter:
 			fmt.Printf("[DEBUG] Executing Filter Search: CharID=%d, Rarity=%s, Attr=%s\n", info.CharacterID, info.Rarity, info.Attr)
 			// 2. Database Execution
-			filtered := s.repo.FilterCards(info)
+			filtered, ferr := s.repo.FilterCards(info)
+			if ferr != nil {
+				return nil, ferr
+			}
 			if len(filtered) == 0 {
 				return nil, fmt.Errorf("card not found (filter): %s", query)
 			}
@@ -70,7 +83,10 @@ func (s *CardSearchService) SearchList(query string) ([]*masterdata.Card, error)
 		case QueryTypeFilter:
 			fmt.Printf("[DEBUG] Executing Filter List Search: CharID=%d, Rarity=%s, Attr=%s\n", info.CharacterID, info.Rarity, info.Attr)
 			// Return ALL matched cards
-			filtered := s.repo.FilterCards(info)
+			filtered, ferr := s.repo.FilterCards(info)
+			if ferr != nil {
+				return nil, ferr
+			}
 			if len(filtered) == 0 {
 				return nil, fmt.Errorf("No cards found for filter: %s", query)
 			}

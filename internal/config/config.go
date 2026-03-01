@@ -11,12 +11,14 @@ import (
 )
 
 type Config struct {
-	Server     ServerConfig     `yaml:"server"`
-	DrawingAPI DrawingAPIConfig `yaml:"drawing_api"`
-	MasterData MasterDataConfig `yaml:"masterdata"`
-	Assets     AssetsConfig     `yaml:"assets"`
-	UserData   UserDataConfig   `yaml:"user_data"`
-	Log        LogConfig        `yaml:"log"`
+	Server        ServerConfig        `yaml:"server"`
+	DrawingAPI    DrawingAPIConfig    `yaml:"drawing_api"`
+	MasterData    MasterDataConfig    `yaml:"masterdata"`
+	Assets        AssetsConfig        `yaml:"assets"`
+	UserData      UserDataConfig      `yaml:"user_data"`
+	Log           LogConfig           `yaml:"log"`
+	HarukiCloud   HarukiCloudConfig   `yaml:"haruki_cloud"`
+	DeckRecommend DeckRecommendConfig `yaml:"deck_recommend"`
 }
 
 type ServerConfig struct {
@@ -48,6 +50,37 @@ type UserDataConfig struct {
 type LogConfig struct {
 	Level  string `yaml:"level"`
 	Format string `yaml:"format"`
+}
+
+type HarukiCloudConfig struct {
+	SekaiDB          DatabaseConfig `yaml:"sekai_db"`
+	UseLocalEventSrc bool           `yaml:"use_local_event_source"`
+	UseLocalCardSrc  bool           `yaml:"use_local_card_source"`
+	Region           string         `yaml:"region"`
+	SecondaryRegion  string         `yaml:"secondary_region"`
+}
+
+type DatabaseConfig struct {
+	Driver   string `yaml:"driver"`
+	DSN      string `yaml:"dsn"`
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Database string `yaml:"database"`
+	User     string `yaml:"user"`
+	Password string `yaml:"password"`
+	SSLMode  string `yaml:"sslmode"`
+}
+
+type DeckRecommendConfig struct {
+	Enabled     bool                        `yaml:"enabled"`
+	Timeout     time.Duration               `yaml:"timeout"`
+	Servers     []DeckRecommendServerConfig `yaml:"servers"`
+	DefaultAlgs []string                    `yaml:"default_algs"`
+}
+
+type DeckRecommendServerConfig struct {
+	URL    string `yaml:"url"`
+	Weight int    `yaml:"weight"`
 }
 
 // Load loads the configuration from the given path.
