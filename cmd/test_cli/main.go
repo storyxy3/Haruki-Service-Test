@@ -725,7 +725,7 @@ func (env *cliEnv) defaultCommand(mode string) (string, error) {
 	case "event-list":
 		return "/events wl", nil
 	case "education-challenge":
-		return "/\u6311\u6218\u4fe1\u606f", nil
+		return "/挑战信息", nil
 	case "profile":
 		return "1", nil
 	case "stamp-list":
@@ -821,7 +821,7 @@ func extractLeadingRegionToken(raw string) (string, string) {
 }
 
 func testMusicDetail(ctrl *controller.MusicController, svc *service.MusicSearchService, cmd string) error {
-	raw := preprocessCommand(cmd, "/\u67e5\u66f2", "\u67e5\u66f2", "\u67e5\u6b4c", "\u67e5\u4e50", "\u67e5\u8be2\u4e50\u66f2", "\u67e5\u97f3\u4e50")
+	raw := preprocessCommand(cmd, "/查曲", "查曲", "查歌", "查乐", "查询乐曲", "查音乐")
 	region, cleaned := extractLeadingRegionToken(raw)
 	if region == "" {
 		region = "jp"
@@ -1556,7 +1556,7 @@ func testCardListHardcoded(ctrl *controller.CardController) error {
 }
 
 func testCardListDynamic(ctrl *controller.CardController, cmd string) error {
-	raw := preprocessCommand(cmd, "/\u67e5\u5361", "\u67e5\u5361", "\u67e5\u724c", "\u67e5\u5361\u7247", "\u67e5\u8be2\u5361\u7247")
+	raw := preprocessCommand(cmd, "/查卡", "查卡", "查牌", "查卡片", "查询卡片")
 	raw = stripLeadingRegionToken(raw)
 	queries := []model.CardQuery{{Query: raw, UserID: "test_user"}}
 
@@ -1570,7 +1570,7 @@ func testCardListDynamic(ctrl *controller.CardController, cmd string) error {
 }
 
 func testCardBox(ctrl *controller.CardController, cmd string) error {
-	raw := preprocessCommand(cmd, "/\u67e5\u5361", "\u67e5\u5361", "\u67e5\u724c", "\u67e5\u5361\u7247", "\u67e5\u8be2\u5361\u7247")
+	raw := preprocessCommand(cmd, "/查卡", "查卡", "查牌", "查卡片", "查询卡片")
 	raw = stripLeadingRegionToken(raw)
 	queries := []model.CardQuery{{Query: raw, UserID: "test_user"}}
 
@@ -1584,7 +1584,7 @@ func testCardBox(ctrl *controller.CardController, cmd string) error {
 }
 
 func testCardDetail(ctrl *controller.CardController, parser *service.CardParser, cmd string) error {
-	raw := preprocessCommand(cmd, "/\u67e5\u5361", "\u67e5\u5361", "\u67e5\u724c", "\u67e5\u5361\u7247", "\u67e5\u8be2\u5361\u7247")
+	raw := preprocessCommand(cmd, "/查卡", "查卡", "查牌", "查卡片", "查询卡片")
 	raw = stripLeadingRegionToken(raw)
 	fmt.Printf("Processing command: '%s'\n", raw)
 
@@ -1688,7 +1688,7 @@ func parseMusicChartCommand(cmd string) (model.MusicChartQuery, error) {
 		}
 		lt := strings.ToLower(token)
 		switch lt {
-		case "skill", "\u6280\u80fd", "withskill":
+		case "skill", "技能", "withskill":
 			skill = true
 			continue
 		}
@@ -1753,7 +1753,7 @@ func parseMusicListCommand(cmd string) (model.MusicListQuery, error) {
 	raw := strings.TrimSpace(strings.TrimPrefix(cmd, "/"))
 	replacements := []string{
 		"pjsk song list", "pjsk music list", "pjsk music constant",
-		"\u4e50\u66f2\u5217\u8868", "\u4e50\u66f2\u4e00\u89c8", "\u96be\u5ea6\u6392\u884c", "\u67e5\u4e50\u66f2",
+		"乐曲列表", "乐曲一览", "难度排行", "查乐曲",
 	}
 	lower := strings.ToLower(raw)
 	for _, rep := range replacements {
@@ -1927,10 +1927,10 @@ func parseGachaListCommand(cmd string) model.GachaListQuery {
 func parseGachaDetailCommand(cmd string) (model.GachaDetailQuery, error) {
 	raw := strings.TrimSpace(strings.TrimPrefix(cmd, "/"))
 	replacements := []string{
-		"\u5361\u6c60",
-		"\u67e5\u5361\u6c60",
-		"\u62bd\u5361",
-		"\u67e5\u770b\u5361\u6c60",
+		"卡池",
+		"查卡池",
+		"抽卡",
+		"查看卡池",
 		"gacha",
 		"gacha-detail",
 		"gachadetail",
@@ -2042,13 +2042,13 @@ func preprocessEventCommand(cmd string) string {
 		"events",
 		"pjsk event",
 		"pjsk events",
-		"\u6d3b\u52a8",
-		"\u67e5\u6d3b\u52a8",
-		"\u6d3b\u52d5",
-		"\u67e5\u6d3b\u52d5",
-		"\u6d3b\u52a8\u5217\u8868",
-		"\u6d3b\u52a8\u8be6\u60c5",
-		"\u67e5\u6d3b\u52a8\u5217\u8868",
+		"活动",
+		"查活动",
+		"活動",
+		"查活動",
+		"活动列表",
+		"活动详情",
+		"查活动列表",
 	}
 	lower := strings.ToLower(cmd)
 	for _, rep := range replacements {
@@ -2089,9 +2089,9 @@ func parseEducationRegion(cmd string) string {
 		"/education-challenge", "education-challenge",
 		"/education", "education",
 		"/challenge", "challenge",
-		"/\u6311\u6218\u4fe1\u606f", "\u6311\u6218\u4fe1\u606f",
-		"/\u6311\u6218", "\u6311\u6218",
-		"/\u6559\u80b2\u6311\u6218", "\u6559\u80b2\u6311\u6218",
+		"/挑战信息", "挑战信息",
+		"/挑战", "挑战",
+		"/教育挑战", "教育挑战",
 	)
 	return strings.ToLower(strings.TrimSpace(raw))
 }

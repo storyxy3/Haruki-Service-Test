@@ -601,16 +601,16 @@ var vocalLocalizationByRegion = map[string]map[string]string{
 		"virtual singer": "Virtual Singer",
 	},
 	"cn": {
-		"sekai":          "\u300c\u4e16\u754c\u300d",
-		"virtual singer": "\u865a\u62df\u6b4c\u624b",
+		"sekai":          "「世界」",
+		"virtual singer": "虚拟歌手",
 	},
 	"tw": {
-		"sekai":          "\u300c\u4e16\u754c\u300d",
-		"virtual singer": "\u865b\u64ec\u6b4c\u624b",
+		"sekai":          "「世界」",
+		"virtual singer": "虛擬歌手",
 	},
 	"kr": {
-		"sekai":          "\uc138\uce74\uc774",
-		"virtual singer": "\ubc84\ucd94\uc5bc \uc2f1\uc5b4",
+		"sekai":          "세카이",
+		"virtual singer": "버추얼 싱어",
 	},
 }
 
@@ -625,8 +625,8 @@ func normalizeVocalCaption(raw string, vocalType string, assetBundleName string,
 		trimmed = strings.TrimSpace(vocalType)
 	}
 	key := strings.ToLower(trimmed)
-	key = strings.ReplaceAll(key, "\u3000", " ")
-	key = strings.ReplaceAll(key, "\uff0e", ".")
+	key = strings.ReplaceAll(key, "　", " ")
+	key = strings.ReplaceAll(key, "．", ".")
 	key = strings.ReplaceAll(key, "version", "ver.")
 	key = strings.ReplaceAll(key, "ver..", "ver.")
 	key = strings.TrimSpace(key)
