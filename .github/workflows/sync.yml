@@ -1,0 +1,25 @@
+name: Sync to Organization Repository
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to Organization Repository
+        env:
+          TARGET_REPO: 'github.com/Team-Haruki/Service-Test.git'
+          TARGET_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
+        run: |
+          # 移除 actions/checkout 默认配置的 GITHUB_TOKEN 认证头
+          git config --local --unset-all "http.https://github.com/.extraheader" || true
+          git remote add org_repo https://${TARGET_TOKEN}@${TARGET_REPO}
+          git push org_repo master:master --force
