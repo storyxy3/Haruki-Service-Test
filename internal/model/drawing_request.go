@@ -271,7 +271,7 @@ type EventInfo struct {
 	EndAt         int64           `json:"end_at"`
 	IsWLEvent     bool            `json:"is_wl_event"`
 	BannerCID     *int            `json:"banner_cid,omitempty"`
-	BannerIndex   *int            `json:"banner_index,omitempty"`
+	BannerIndex   int             `json:"banner_index"`
 	BonusAttr     string          `json:"bonus_attr,omitempty"`
 	BonusCharaIDs []int           `json:"bonus_chara_id,omitempty"`
 	WLTimeList    []EventWlTiming `json:"wl_time_list,omitempty"`
