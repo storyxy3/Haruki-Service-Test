@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - dev
 
 jobs:
   sync:
@@ -22,4 +23,5 @@ jobs:
           # 移除 actions/checkout 默认配置的 GITHUB_TOKEN 认证头
           git config --local --unset-all "http.https://github.com/.extraheader" || true
           git remote add org_repo https://${TARGET_TOKEN}@${TARGET_REPO}
-          git push org_repo master:master --force
+          # 推送当前触发的分支（master 或 dev）到对应分支
+          git push org_repo HEAD:${GITHUB_REF#refs/heads/} --force

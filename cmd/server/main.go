@@ -318,6 +318,28 @@ func main() {
 	mux.HandleFunc("/api/profile/build", handleProfileBuild(profileController, userData))
 	mux.HandleFunc("/api/profile/render", handleProfileRender(profileController, userData))
 
+	// ── Unified render dispatch (for Haruki-Command-Parser integration) ──────────
+	// POST /api/render  accepts ParsedCommand JSON from Part1 and routes to the
+	// appropriate controller. This is the main integration point in the dev branch.
+	renderDispatchEnv := &renderEnv{
+		card:      cardController,
+		music:     musicController,
+		gacha:     gachaController,
+		event:     eventController,
+		deck:      deckController,
+		sk:        skController,
+		mysekai:   mysekaiController,
+		honor:     honorController,
+		profile:   profileController,
+		education: educationController,
+		stamp:     stampController,
+		misc:      miscController,
+		score:     scoreController,
+		userData:  userData,
+	}
+	mux.HandleFunc("/api/render", handleRenderDispatch(renderDispatchEnv))
+	// ─────────────────────────────────────────────────────────────────────────────
+
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	slog.Info("Server starting", "address", addr)
 

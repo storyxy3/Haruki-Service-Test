@@ -1,41 +1,65 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║           Haruki-Service-API  —  configs.yaml                   ║
+# ║  Part2: 数据查询 + DrawingAPI 请求体构建 + 图片渲染                ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+# ── HTTP 服务 ──────────────────────────────────────────────────────
 server:
   host: "0.0.0.0"
-  port: 8080
+  port: 24000         # Part2 固定监听 24000；Part1 监听 24001
 
+# ── DrawingAPI 连接 ────────────────────────────────────────────────
 drawing_api:
-  base_url: "http://localhost:28000"
-  timeout: 30s
-  retry_count: 3
-  output_dir: "D:/github/testfile"
+  base_url: "http://localhost:28000"   # DrawingAPI 服务地址
+  timeout: 30s                         # 单次请求超时
+  retry_count: 3                       # 失败重试次数
+  output_dir: "D:/github/testfile"     # 本地调试时图片输出目录（生产可留空）
 
+# ── 本地 MasterData（回退数据源）─────────────────────────────────────
+# 当 haruki_cloud.use_local_*_source = true 时使用
 masterdata:
   dir: "D:/github/haruki-sekai-master/master"
   cache_enabled: true
 
+# ── 游戏资源文件目录 ───────────────────────────────────────────────
 assets:
   dir: "Z:/pjskdata/Data"
+  # 如有旧路径可在此追加（按优先级排列）
+  legacy_dirs: []
 
+# ── 用户数据（打歌进度等本地 JSON）────────────────────────────────────
 user_data:
   path: "D:/github/testfile/user.json"
 
+# ── 日志 ───────────────────────────────────────────────────────────
 log:
-  level: "info"
-  format: "json"
+  level: "info"     # debug | info | warn | error
+  format: "json"    # json | text
 
+# ── Haruki-Cloud 数据库 ────────────────────────────────────────────
+# Part2 使用完整数据库权限（cards/musics/events/gachas/...全部表）
 haruki_cloud:
   sekai_db:
-    driver: "postgres"
-    host: "localhost"
-    port: 5432
+    driver:   "postgres"
+    host:     "localhost"
+    port:     5432
     database: "master_data"
-    user: "haruki"
+    user:     "haruki"
     password: "sszh2015"
-    sslmode: "disable"
-  use_local_event_source: false
-  use_local_card_source: false
+    sslmode:  "disable"
+    # 若需要直接指定完整 DSN 可用 dsn 字段（设置后 host/port 等被忽略）:
+    # dsn: "host=localhost port=5432 user=haruki password=sszh2015 dbname=master_data sslmode=disable"
+
+  # 主区服（用于所有 controller 的默认数据源）
   region: "jp"
+  # 次要区服（同时初始化一个次要数据源，供双服对比查询）
   secondary_region: "cn"
 
+  # 调试用：强制使用本地 masterdata 而非数据库（仅在无法连接 DB 时开启）
+  use_local_event_source: false
+  use_local_card_source:  false
+
+# ── 组卡推荐服务 ───────────────────────────────────────────────────
 deck_recommend:
   enabled: false
   timeout: 60s

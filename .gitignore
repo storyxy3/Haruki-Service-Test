@@ -21,3 +21,7 @@ Thumbs.db
 testfile/
 tmp/
 logs/
+
+# Go workspace (local only)
+go.work
+go.work.sum
