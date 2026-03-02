@@ -273,15 +273,16 @@ func (s *DrawingService) callAPI(endpoint string, reqBody interface{}) ([]byte, 
 			lastErr = err
 			continue
 		}
-		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
 			lastErr = fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
 			continue
 		}
 
 		data, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
 		if err != nil {
 			lastErr = err
 			continue
