@@ -280,6 +280,9 @@ func (b *EventBuilder) extractEventBonuses(eventID int) (string, []int) {
 			if unit, err := b.source.GetGameCharacterUnit(bb.GameCharacterUnitID); err == nil {
 				charSet[unit.GameCharacterID] = struct{}{}
 			}
+		} else if bb.GameCharacterID != 0 {
+			// Fallback for older servers/early events without CUID directly to CharacterID
+			charSet[bb.GameCharacterID] = struct{}{}
 		}
 	}
 	var chars []int
@@ -307,10 +310,15 @@ func (b *EventBuilder) matchEventBonus(eventID int, unit string, blend bool, att
 		if !attrMatched && strings.EqualFold(bonus.CardAttr, attr) {
 			attrMatched = true
 		}
-		gcu, gcuErr := b.source.GetGameCharacterUnit(bonus.GameCharacterUnitID)
-		if gcuErr == nil && gcu != nil {
-			units[strings.ToLower(strings.TrimSpace(gcu.Unit))] = struct{}{}
-			charSet[gcu.GameCharacterID] = struct{}{}
+		if bonus.GameCharacterUnitID != 0 {
+			gcu, gcuErr := b.source.GetGameCharacterUnit(bonus.GameCharacterUnitID)
+			if gcuErr == nil && gcu != nil {
+				units[strings.ToLower(strings.TrimSpace(gcu.Unit))] = struct{}{}
+				charSet[gcu.GameCharacterID] = struct{}{}
+			}
+		} else if bonus.GameCharacterID != 0 {
+			// Fallback for older events: we don't have unit info accurately matched, but we know the character ID
+			charSet[bonus.GameCharacterID] = struct{}{}
 		}
 	}
 

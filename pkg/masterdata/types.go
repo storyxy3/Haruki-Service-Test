@@ -290,6 +290,7 @@ type EventDeckBonus struct {
 	ID                  int     `json:"id"`
 	EventID             int     `json:"eventId"`
 	GameCharacterUnitID int     `json:"gameCharacterUnitId"`
+	GameCharacterID     int     `json:"gameCharacterId,omitempty"` // 用于兼容早期数据没有 CUID 的情况
 	CardAttr            string  `json:"cardAttr"`
 	BonusRate           float64 `json:"bonusRate"`
 }
