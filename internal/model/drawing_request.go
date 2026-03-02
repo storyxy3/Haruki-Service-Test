@@ -273,7 +273,7 @@ type EventInfo struct {
 	BannerCID     *int            `json:"banner_cid,omitempty"`
 	BannerIndex   int             `json:"banner_index"`
 	BonusAttr     string          `json:"bonus_attr,omitempty"`
-	BonusCharaIDs []int           `json:"bonus_chara_id,omitempty"`
+	BonusCharaIDs []int           `json:"bonus_chara_id"`
 	WLTimeList    []EventWlTiming `json:"wl_time_list,omitempty"`
 }
 
@@ -293,7 +293,7 @@ type EventAssets struct {
 	EventAttrImagePath string   `json:"event_attr_image_path,omitempty"`
 	EventBanCharaImg   string   `json:"event_ban_chara_img,omitempty"`
 	BanCharaIconPath   string   `json:"ban_chara_icon_path,omitempty"`
-	BonusCharaPath     []string `json:"bonus_chara_path,omitempty"`
+	BonusCharaPath     []string `json:"bonus_chara_path"`
 }
 
 // EventDetailRequest 描述活动详情请求

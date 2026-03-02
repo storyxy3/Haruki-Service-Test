@@ -105,10 +105,11 @@ func (b *EventBuilder) buildEventInfo(event *masterdata.Event) (model.EventInfo,
 	info := model.EventInfo{
 		ID: event.ID,
 		// Keep raw event type code so drawing side can branch world_bloom correctly.
-		EventType: strings.ToLower(strings.TrimSpace(event.EventType)),
-		StartAt:   event.StartAt,
-		EndAt:     event.AggregateAt + 1000,
-		IsWLEvent: isWLEvent,
+		EventType:     strings.ToLower(strings.TrimSpace(event.EventType)),
+		StartAt:       event.StartAt,
+		EndAt:         event.AggregateAt + 1000,
+		IsWLEvent:     isWLEvent,
+		BonusCharaIDs: []int{},
 	}
 	// Lunabot behavior: WL does not expose banner character/avatar in detail.
 	if !isWLEvent {
@@ -123,7 +124,9 @@ func (b *EventBuilder) buildEventInfo(event *masterdata.Event) (model.EventInfo,
 	}
 	if attr, chars := b.extractEventBonuses(event.ID); attr != "" {
 		info.BonusAttr = attr
-		info.BonusCharaIDs = chars
+		if chars != nil {
+			info.BonusCharaIDs = chars
+		}
 	}
 	if wlTimeline := b.buildWorldBloomTimeline(event.ID); len(wlTimeline) > 0 {
 		info.WLTimeList = wlTimeline
@@ -142,6 +145,7 @@ func (b *EventBuilder) buildEventAssets(event *masterdata.Event, info model.Even
 			filepath.Join("event", assetName, "logo", "logo.png"),
 			filepath.Join("event", assetName, "logo.png"),
 		),
+		BonusCharaPath: []string{},
 	}
 	if !strings.EqualFold(event.EventType, "world_bloom") {
 		assets.EventStoryBgPath = asset.ResolveAssetPath(b.assets, b.assetDir,
