@@ -103,9 +103,8 @@ func (b *EventBuilder) BuildEventListRequest(query model.EventListQuery) (*model
 func (b *EventBuilder) buildEventInfo(event *masterdata.Event) (model.EventInfo, error) {
 	isWLEvent := strings.EqualFold(event.EventType, "world_bloom")
 	info := model.EventInfo{
-		ID: event.ID,
-		// Keep raw event type code so drawing side can branch world_bloom correctly.
-		EventType:     strings.ToLower(strings.TrimSpace(event.EventType)),
+		ID:            event.ID,
+		EventType:     b.displayEventType(event.EventType),
 		StartAt:       event.StartAt,
 		EndAt:         event.AggregateAt + 1000,
 		IsWLEvent:     isWLEvent,
