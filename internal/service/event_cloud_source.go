@@ -146,13 +146,9 @@ func (c *CloudEventSource) GetEventCards(eventID int) ([]*masterdata.Card, error
 		cardIDs = append(cardIDs, int(link.CardID))
 	}
 
-	cards := make([]*masterdata.Card, 0, len(cardIDs))
-	for _, cid := range cardIDs {
-		card, err := c.getCardByID(cid)
-		if err != nil {
-			return nil, err
-		}
-		cards = append(cards, card)
+	cards, err := c.getCardsByIDs(cardIDs)
+	if err != nil {
+		return nil, err
 	}
 	return cards, nil
 }
@@ -401,6 +397,68 @@ func (c *CloudEventSource) FilterEvents(filter EventFilter) []*masterdata.Event 
 }
 
 // Helpers
+
+func (c *CloudEventSource) getCardsByIDs(ids []int) ([]*masterdata.Card, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	result := make([]*masterdata.Card, len(ids))
+	var missing []int64
+	var missingIndices []int
+
+	c.cardMu.RLock()
+	for i, id := range ids {
+		if card, ok := c.cardCache[id]; ok {
+			copy := *card
+			result[i] = &copy
+		} else {
+			missing = append(missing, int64(id))
+			missingIndices = append(missingIndices, i)
+		}
+	}
+	c.cardMu.RUnlock()
+
+	if len(missing) == 0 {
+		return result, nil
+	}
+
+	ctx := c.context()
+	entities, err := c.client.Card.Query().
+		Where(
+			card.ServerRegionEQ(c.queryRegion),
+			card.GameIDIn(missing...),
+		).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	entityMap := make(map[int64]*sekai.Card)
+	for _, e := range entities {
+		entityMap[e.GameID] = e
+	}
+
+	c.cardMu.Lock()
+	defer c.cardMu.Unlock()
+
+	for k, idx := range missingIndices {
+		id64 := missing[k]
+		e, ok := entityMap[id64]
+		if !ok {
+			return nil, fmt.Errorf("card %d not found in DB", id64)
+		}
+		model, err := convertCardEntity(e)
+		if err != nil {
+			return nil, err
+		}
+		c.cardCache[int(id64)] = model
+		copy := *model
+		result[idx] = &copy
+	}
+
+	return result, nil
+}
 
 func (c *CloudEventSource) getCardByID(id int) (*masterdata.Card, error) {
 	c.cardMu.RLock()

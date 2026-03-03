@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -17,6 +18,10 @@ type DrawingService struct {
 	httpClient     *http.Client
 	retryCount     int
 	assetDirStrips []string
+
+	breakerMu     sync.Mutex
+	errCount      int
+	breakerExtrap time.Time
 }
 
 // NewDrawingService 创建 DrawingService
@@ -252,6 +257,13 @@ func (s *DrawingService) GenerateMysekaiTalkList(req interface{}) ([]byte, error
 }
 
 func (s *DrawingService) callAPI(endpoint string, reqBody interface{}) ([]byte, error) {
+	s.breakerMu.Lock()
+	if time.Now().Before(s.breakerExtrap) {
+		s.breakerMu.Unlock()
+		return nil, fmt.Errorf("后端生成服务超载，熔断保护中，请稍后再试")
+	}
+	s.breakerMu.Unlock()
+
 	url := s.baseURL + endpoint
 
 	jsonData, err := json.Marshal(reqBody)
@@ -287,6 +299,10 @@ func (s *DrawingService) callAPI(endpoint string, reqBody interface{}) ([]byte, 
 			lastErr = err
 			continue
 		}
+
+		s.breakerMu.Lock()
+		s.errCount = 0
+		s.breakerMu.Unlock()
 
 		return data, nil
 	}
