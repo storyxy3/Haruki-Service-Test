@@ -460,36 +460,6 @@ func (c *CloudEventSource) getCardsByIDs(ids []int) ([]*masterdata.Card, error) 
 	return result, nil
 }
 
-func (c *CloudEventSource) getCardByID(id int) (*masterdata.Card, error) {
-	c.cardMu.RLock()
-	if card, ok := c.cardCache[id]; ok {
-		c.cardMu.RUnlock()
-		copy := *card
-		return &copy, nil
-	}
-	c.cardMu.RUnlock()
-
-	ctx := c.context()
-	entity, err := c.client.Card.Query().
-		Where(
-			card.ServerRegionEQ(c.queryRegion),
-			card.GameIDEQ(int64(id)),
-		).
-		Only(ctx)
-	if err != nil {
-		return nil, err
-	}
-	model, err := convertCardEntity(entity)
-	if err != nil {
-		return nil, err
-	}
-	c.cardMu.Lock()
-	c.cardCache[id] = model
-	c.cardMu.Unlock()
-	copy := *model
-	return &copy, nil
-}
-
 func (c *CloudEventSource) isFestivalCard(supplyID int) bool {
 	if supplyID == 0 {
 		return false
