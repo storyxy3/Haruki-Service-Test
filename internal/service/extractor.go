@@ -158,10 +158,6 @@ func isAsciiLetter(ch byte) bool {
 	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')
 }
 
-func isSpaceOrTab(r rune) bool {
-	return r == ' ' || r == '\t'
-}
-
 // -----------------------------------------------------------------------------
 // 3. 属性提取
 // -----------------------------------------------------------------------------
@@ -322,4 +318,3 @@ func (e *Extractor) ExtractID(text string) ExtractResult[int] {
 	}
 	return ExtractResult[int]{Value: 0, Remaining: text, Found: false}
 }
-
