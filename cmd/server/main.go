@@ -64,7 +64,27 @@ func main() {
 		cfg.DrawingAPI.RetryCount,
 		assetHelper.Roots(),
 	)
-	deckRecommender := service.NewDeckRecommenderService(cfg.DeckRecommend)
+
+	var deckRecommender service.DeckRecommender
+	if cfg.DeckRecommend.UseLocalEngine {
+		localRec, err := service.NewLocalDeckRecommender(
+			cfg.MasterData.Dir,
+			userData.MusicMetaBytes(),
+			masterdata.GetRegion(),
+			cfg.DeckRecommend.DefaultAlgs,
+			cfg.DeckRecommend.LocalPoolSize,
+			cfg.DeckRecommend.Timeout,
+		)
+		if err != nil {
+			slog.Warn("Failed to initialize local deck recommender, falling back to backend", "error", err)
+			deckRecommender = service.NewDeckRecommenderService(cfg.DeckRecommend)
+		} else {
+			deckRecommender = localRec
+			slog.Info("Initialized Local CGo Deck Recommender")
+		}
+	} else {
+		deckRecommender = service.NewDeckRecommenderService(cfg.DeckRecommend)
+	}
 
 	nicknames := masterdata.GetNicknames()
 	cardParser := service.NewCardParser(nicknames)

@@ -15,6 +15,12 @@ import (
 	"Haruki-Service-API/internal/config"
 )
 
+type DeckRecommender interface {
+	Enabled() bool
+	ExpandAlgorithms(option map[string]interface{}) []map[string]interface{}
+	Recommend(req DeckRecommendRequest) (*DeckRecommendResult, error)
+}
+
 type DeckRecommenderService struct {
 	enabled     bool
 	servers     []string

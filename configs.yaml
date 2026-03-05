@@ -63,6 +63,10 @@ haruki_cloud:
 # ── 组卡推荐服务 ───────────────────────────────────────────────────
 deck_recommend:
   enabled: true
+  # use_local_engine: 启用后直接调用本地 CGo C++ 引擎，完全绕过 Python+HTTP 路径
+  # 需要先按 pkg/deck_cgo/BUILD.md 编译 sekai_deck_recommend_c 共享库
+  use_local_engine: false
+  local_pool_size: 0    # 0 = auto (min(CPU核数,4))
   timeout: 60s
   default_algs: ["dfs", "sa", "ga"]
   servers:

@@ -73,10 +73,12 @@ type DatabaseConfig struct {
 }
 
 type DeckRecommendConfig struct {
-	Enabled     bool                        `yaml:"enabled"`
-	Timeout     time.Duration               `yaml:"timeout"`
-	Servers     []DeckRecommendServerConfig `yaml:"servers"`
-	DefaultAlgs []string                    `yaml:"default_algs"`
+	Enabled        bool                        `yaml:"enabled"`
+	UseLocalEngine bool                        `yaml:"use_local_engine"`
+	LocalPoolSize  int                         `yaml:"local_pool_size"`
+	Timeout        time.Duration               `yaml:"timeout"`
+	Servers        []DeckRecommendServerConfig `yaml:"servers"`
+	DefaultAlgs    []string                    `yaml:"default_algs"`
 }
 
 type DeckRecommendServerConfig struct {

@@ -23,7 +23,7 @@ type DeckController struct {
 	assets      *asset.AssetHelper
 	assetDir    string
 	userData    *service.UserDataService
-	recommender *service.DeckRecommenderService
+	recommender service.DeckRecommender
 }
 
 func NewDeckController(
@@ -32,7 +32,7 @@ func NewDeckController(
 	events service.EventDataSource,
 	assets *asset.AssetHelper,
 	userData *service.UserDataService,
-	recommender *service.DeckRecommenderService,
+	recommender service.DeckRecommender,
 ) *DeckController {
 	assetDir := ""
 	if assets != nil {
