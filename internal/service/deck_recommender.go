@@ -26,6 +26,7 @@ type DeckRecommenderService struct {
 type DeckRecommendRequest struct {
 	Region      string                   `json:"region"`
 	UserData    []byte                   `json:"user_data"`
+	MusicMeta   []byte                   `json:"music_meta"`
 	BatchOption []map[string]interface{} `json:"batch_options"`
 }
 
@@ -135,7 +136,13 @@ func (s *DeckRecommenderService) Recommend(req DeckRecommendRequest) (*DeckRecom
 		return nil, fmt.Errorf("deck recommender requires batch_options")
 	}
 
-	cachePayload, err := buildDeckBinaryPayload([][]byte{req.UserData})
+	var payloadParts [][]byte
+	payloadParts = append(payloadParts, req.UserData)
+	if len(req.MusicMeta) > 0 {
+		payloadParts = append(payloadParts, req.MusicMeta)
+	}
+
+	cachePayload, err := buildDeckBinaryPayload(payloadParts)
 	if err != nil {
 		return nil, err
 	}

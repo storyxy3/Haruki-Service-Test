@@ -22,10 +22,11 @@ func isNumeric(s string) bool {
 
 // UserDataService 负责加载本地 suite 导出的 user.json，并为需要玩家数据的模块提供便捷访问
 type UserDataService struct {
-	baseProfile *model.DetailedProfileCardRequest
-	musicResult map[string]map[int]string
-	challenge   *ChallengeLiveData
-	rawData     *RawUserData // Keep raw for detailed mapping
+	baseProfile    *model.DetailedProfileCardRequest
+	musicResult    map[string]map[int]string
+	challenge      *ChallengeLiveData
+	rawData        *RawUserData // Keep raw for detailed mapping
+	musicMetaBytes []byte       // Raw bytes from music_metas.json
 }
 
 // RawUserData JSON structures (only keep fields we need)
@@ -150,7 +151,7 @@ type RawChallengeLiveReward struct {
 }
 
 // NewUserDataService loads user.json and prepares derived structures. If path is empty, returns nil.
-func NewUserDataService(path string, assetDir string, masterdata *MasterDataService, defaultRegion string) (*UserDataService, error) {
+func NewUserDataService(path string, musicMetaPath string, assetDir string, masterdata *MasterDataService, defaultRegion string) (*UserDataService, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, nil
 	}
@@ -193,6 +194,15 @@ func NewUserDataService(path string, assetDir string, masterdata *MasterDataServ
 
 	resultMap := buildMusicResultMap(raw.UserMusicStats)
 
+	var musicMeta []byte
+	if strings.TrimSpace(musicMetaPath) != "" {
+		if mBytes, err := os.ReadFile(filepath.Clean(musicMetaPath)); err == nil {
+			musicMeta = mBytes
+		} else {
+			fmt.Printf("[WARN] Failed to load music meta from %s: %v\n", musicMetaPath, err)
+		}
+	}
+
 	return &UserDataService{
 		baseProfile: profile,
 		musicResult: resultMap,
@@ -201,7 +211,8 @@ func NewUserDataService(path string, assetDir string, masterdata *MasterDataServ
 			Stages:  convertChallengeStages(raw.UserChallengeLiveSoloStages),
 			Rewards: convertChallengeRewards(raw.UserChallengeLiveSoloHighScoreRewards),
 		},
-		rawData: &raw,
+		rawData:        &raw,
+		musicMetaBytes: musicMeta,
 	}, nil
 }
 
@@ -507,4 +518,12 @@ func (s *UserDataService) RawBytes() ([]byte, error) {
 		return nil, fmt.Errorf("raw user data unavailable")
 	}
 	return json.Marshal(s.rawData)
+}
+
+// MusicMetaBytes returns the raw bytes from music_metas.json.
+func (s *UserDataService) MusicMetaBytes() []byte {
+	if s == nil || s.musicMetaBytes == nil {
+		return nil
+	}
+	return s.musicMetaBytes
 }

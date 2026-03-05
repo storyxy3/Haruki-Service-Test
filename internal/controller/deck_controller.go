@@ -130,6 +130,7 @@ func (c *DeckController) buildDeckRecommendAutoWithBackend(query model.DeckAutoQ
 	result, err := c.recommender.Recommend(service.DeckRecommendRequest{
 		Region:      region,
 		UserData:    userBytes,
+		MusicMeta:   c.userData.MusicMetaBytes(),
 		BatchOption: expanded,
 	})
 	if err != nil {

@@ -30,6 +30,7 @@ assets:
 # ── 用户数据（打歌进度等本地 JSON）────────────────────────────────────
 user_data:
   path: "D:/github/testfile/user.json"
+  music_meta_path: "D:/github/testfile/music_metas.json"
 
 # ── 日志 ───────────────────────────────────────────────────────────
 log:
@@ -61,7 +62,7 @@ haruki_cloud:
 
 # ── 组卡推荐服务 ───────────────────────────────────────────────────
 deck_recommend:
-  enabled: false
+  enabled: true
   timeout: 60s
   default_algs: ["dfs", "sa", "ga"]
   servers:

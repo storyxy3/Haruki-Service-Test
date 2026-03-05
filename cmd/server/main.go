@@ -50,7 +50,7 @@ func main() {
 
 	var userData *service.UserDataService
 	if cfg.UserData.Path != "" {
-		data, err := service.NewUserDataService(cfg.UserData.Path, assetHelper.Primary(), masterdata, masterdata.GetRegion())
+		data, err := service.NewUserDataService(cfg.UserData.Path, cfg.UserData.MusicMetaPath, assetHelper.Primary(), masterdata, masterdata.GetRegion())
 		if err != nil {
 			slog.Warn("Failed to load user data", "path", cfg.UserData.Path, "error", err)
 		} else {
