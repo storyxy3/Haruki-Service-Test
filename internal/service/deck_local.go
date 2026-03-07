@@ -16,6 +16,7 @@ package service
 
 import (
 	"fmt"
+	"log"
 	"runtime"
 	"strings"
 	"time"
@@ -62,7 +63,7 @@ func NewLocalDeckRecommender(
 		nil, // no in-memory masterdata map; load from dir
 		"",  // no musicmetas file path; inject bytes below
 		musicmetasData,
-		region,
+		strings.ToLower(region),
 		poolSize,
 	)
 	if err != nil {
@@ -162,12 +163,14 @@ func (l *LocalDeckRecommender) Recommend(req DeckRecommendRequest) (*DeckRecomme
 		CostTimes: make(map[string]float64),
 		WaitTimes: make(map[string]float64),
 	}
-	seen := make(map[string]struct{})
+	seen := make(map[string]*DeckRecommendDeck)
+	var order []string
 
 	for range req.BatchOption {
 		p := <-results
 		if p.err != nil {
-			return nil, fmt.Errorf("LocalDeckRecommender[%s]: %w", p.alg, p.err)
+			log.Printf("[WARN] LocalDeckRecommender[%s] failed: %v\n", p.alg, p.err)
+			continue
 		}
 		if p.alg != "" {
 			agg.CostTimes[p.alg] = p.cost
@@ -175,13 +178,34 @@ func (l *LocalDeckRecommender) Recommend(req DeckRecommendRequest) (*DeckRecomme
 		}
 		for _, deck := range p.decks {
 			h := deckHash(deck)
-			if _, ok := seen[h]; ok {
+			if existing, ok := seen[h]; ok {
+				if p.alg != "" {
+					existing.Algs = append(existing.Algs, p.alg)
+				}
 				continue
 			}
-			seen[h] = struct{}{}
-			agg.Decks = append(agg.Decks, deck)
-			agg.DeckAlgs = append(agg.DeckAlgs, p.alg)
+			deckCopy := deck
+			if p.alg != "" {
+				deckCopy.Algs = []string{p.alg}
+			}
+			seen[h] = &deckCopy
+			order = append(order, h)
 		}
+	}
+
+	for _, h := range order {
+		deck := seen[h]
+		agg.Decks = append(agg.Decks, *deck)
+		algsMap := make(map[string]struct{})
+		for _, a := range deck.Algs {
+			algsMap[a] = struct{}{}
+		}
+		var algs []string
+		for k := range algsMap {
+			algs = append(algs, k)
+		}
+		// Sort the algs for consistent output (dfs+ga+sa)
+		agg.DeckAlgs = append(agg.DeckAlgs, strings.Join(algs, "+"))
 	}
 	return agg, nil
 }
@@ -197,12 +221,21 @@ func mapOptionsToCgo(opt map[string]interface{}, region string) deck_cgo.Options
 		return v
 	}
 	intPtr := func(key string) *int {
-		v, ok := get(key).(float64) // JSON numbers decode as float64
-		if !ok {
+		val := get(key)
+		if val == nil {
 			return nil
 		}
-		n := int(v)
-		return &n
+		switch v := val.(type) {
+		case int:
+			return &v
+		case float64:
+			n := int(v)
+			return &n
+		case float32:
+			n := int(v)
+			return &n
+		}
+		return nil
 	}
 	boolPtr := func(key string) *bool {
 		v, ok := get(key).(bool)
@@ -233,6 +266,49 @@ func mapOptionsToCgo(opt map[string]interface{}, region string) deck_cgo.Options
 		BestSkillAsLeader:            boolPtr("best_skill_as_leader"),
 	}
 
+	parseCardConfig := func(key string) *deck_cgo.CardConfig {
+		val, ok := opt[key].(map[string]interface{})
+		if !ok {
+			return nil
+		}
+		b := func(k string) bool {
+			v, _ := val[k].(bool)
+			return v
+		}
+		return &deck_cgo.CardConfig{
+			Disable:     b("disable"),
+			LevelMax:    b("level_max"),
+			EpisodeRead: b("episode_read"),
+			MasterMax:   b("master_max"),
+			SkillMax:    b("skill_max"),
+			Canvas:      b("canvas"),
+		}
+	}
+
+	o.Rarity1Config = parseCardConfig("rarity_1_config")
+	o.Rarity2Config = parseCardConfig("rarity_2_config")
+	o.Rarity3Config = parseCardConfig("rarity_3_config")
+	o.Rarity4Config = parseCardConfig("rarity_4_config")
+	o.RarityBDConfig = parseCardConfig("rarity_birthday_config")
+
+	if rawCfgs, ok := opt["single_card_configs"].([]interface{}); ok {
+		for _, raw := range rawCfgs {
+			if m, ok := raw.(map[string]interface{}); ok {
+				b := func(k string) bool { v, _ := m[k].(bool); return v }
+				idVal, _ := m["card_id"].(float64)
+				o.SingleCardCfgs = append(o.SingleCardCfgs, deck_cgo.SingleCardConfig{
+					CardID:      int(idVal),
+					Disable:     b("disable"),
+					LevelMax:    b("level_max"),
+					EpisodeRead: b("episode_read"),
+					MasterMax:   b("master_max"),
+					SkillMax:    b("skill_max"),
+					Canvas:      b("canvas"),
+				})
+			}
+		}
+	}
+
 	if mid := intPtr("music_id"); mid != nil {
 		o.MusicID = *mid
 	}
@@ -241,20 +317,25 @@ func mapOptionsToCgo(opt map[string]interface{}, region string) deck_cgo.Options
 	}
 
 	// Fixed cards / characters
-	if v, ok := opt["fixed_cards"].([]interface{}); ok {
-		for _, c := range v {
-			if n, ok := c.(float64); ok {
-				o.FixedCards = append(o.FixedCards, int(n))
+	parseArray := func(key string, target *[]int) {
+		val := opt[key]
+		switch v := val.(type) {
+		case []int:
+			*target = append(*target, v...)
+		case []interface{}:
+			for _, item := range v {
+				switch num := item.(type) {
+				case int:
+					*target = append(*target, num)
+				case float64:
+					*target = append(*target, int(num))
+				}
 			}
 		}
 	}
-	if v, ok := opt["fixed_characters"].([]interface{}); ok {
-		for _, c := range v {
-			if n, ok := c.(float64); ok {
-				o.FixedCharacters = append(o.FixedCharacters, int(n))
-			}
-		}
-	}
+
+	parseArray("fixed_cards", &o.FixedCards)
+	parseArray("fixed_characters", &o.FixedCharacters)
 
 	return o
 }
@@ -267,8 +348,11 @@ func convertCgoDecks(src []deck_cgo.ResultDeck) []DeckRecommendDeck {
 		for _, c := range d.Cards {
 			cards = append(cards, DeckRecommendCard{
 				CardID:         c.CardID,
+				Level:          c.Level,
+				MasterRank:     c.MasterRank,
 				DefaultImage:   c.DefaultImage,
 				SkillLevel:     c.SkillLevel,
+				SkillRate:      float64(c.SkillScoreUp),
 				EventBonusRate: c.EventBonusRate,
 				IsAfterStory:   c.Episode2Read,
 				IsBeforeStory:  !c.Episode1Read,

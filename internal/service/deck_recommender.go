@@ -53,10 +53,13 @@ type DeckRecommendDeck struct {
 	SupportDeckBonusRate float64             `json:"support_deck_bonus_rate"`
 	MultiLiveScoreUp     float64             `json:"multi_live_score_up"`
 	ChallengeScoreDelta  int                 `json:"challenge_score_delta"`
+	Algs                 []string            `json:"-"`
 }
 
 type DeckRecommendCard struct {
 	CardID         int     `json:"card_id"`
+	Level          int     `json:"level"`
+	MasterRank     int     `json:"master_rank"`
 	DefaultImage   string  `json:"default_image"`
 	SkillLevel     int     `json:"skill_level"`
 	SkillRate      float64 `json:"skill_rate"`

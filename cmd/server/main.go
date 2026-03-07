@@ -94,11 +94,10 @@ func main() {
 	}
 	masterCardSource := service.NewMasterDataCardSource(masterdata)
 	var cardSource service.CardDataSource
-	if cloudClients.Sekai != nil {
-		cardSource = service.NewCloudCardSource(cloudClients.Sekai, cloudRegion)
-	}
-	if cardSource == nil && cfg.HarukiCloud.UseLocalCardSrc {
+	if cfg.HarukiCloud.UseLocalCardSrc {
 		cardSource = masterCardSource
+	} else if cloudClients.Sekai != nil {
+		cardSource = service.NewCloudCardSource(cloudClients.Sekai, cloudRegion)
 	}
 	if cardSource == nil {
 		slog.Error("No card data source available; please enable local source or configure Sekai DB")
@@ -119,11 +118,10 @@ func main() {
 
 	cardSearchService := service.NewCardSearchService(cardSource, cardParser)
 	var eventSource service.EventDataSource
-	if cloudClients.Sekai != nil {
-		eventSource = service.NewCloudEventSource(cloudClients.Sekai, cloudRegion)
-	}
-	if eventSource == nil && cfg.HarukiCloud.UseLocalEventSrc {
+	if cfg.HarukiCloud.UseLocalEventSrc {
 		eventSource = service.NewMasterDataEventSource(masterdata)
+	} else if cloudClients.Sekai != nil {
+		eventSource = service.NewCloudEventSource(cloudClients.Sekai, cloudRegion)
 	}
 	if eventSource == nil {
 		slog.Error("No event data source available; please enable local source or configure Sekai DB")

@@ -27,6 +27,7 @@ type UserDataService struct {
 	challenge      *ChallengeLiveData
 	rawData        *RawUserData // Keep raw for detailed mapping
 	musicMetaBytes []byte       // Raw bytes from music_metas.json
+	rawJSON        []byte       // Original user.json bytes (preserved for C++ engine)
 }
 
 // RawUserData JSON structures (only keep fields we need)
@@ -197,7 +198,7 @@ func NewUserDataService(path string, musicMetaPath string, assetDir string, mast
 	var musicMeta []byte
 	if strings.TrimSpace(musicMetaPath) != "" {
 		if mBytes, err := os.ReadFile(filepath.Clean(musicMetaPath)); err == nil {
-			musicMeta = mBytes
+			musicMeta = injectOmakaseMusicMeta(mBytes)
 		} else {
 			fmt.Printf("[WARN] Failed to load music meta from %s: %v\n", musicMetaPath, err)
 		}
@@ -212,6 +213,7 @@ func NewUserDataService(path string, musicMetaPath string, assetDir string, mast
 			Rewards: convertChallengeRewards(raw.UserChallengeLiveSoloHighScoreRewards),
 		},
 		rawData:        &raw,
+		rawJSON:        data, // save original bytes - preserves ALL fields including userAreas
 		musicMetaBytes: musicMeta,
 	}, nil
 }
@@ -512,9 +514,18 @@ func (s *UserDataService) GetUserCards() []map[string]interface{} {
 	return s.baseProfile.UserCards
 }
 
-// RawBytes serializes raw suite data for external deck recommender backend.
+// RawBytes returns the original user.json bytes unchanged so the C++ engine
+// receives ALL fields (including userAreas, userMysekaiCards, etc.) that are
+// not mapped into our Go struct but are required by the engine.
 func (s *UserDataService) RawBytes() ([]byte, error) {
-	if s == nil || s.rawData == nil {
+	if s == nil {
+		return nil, fmt.Errorf("raw user data unavailable")
+	}
+	if len(s.rawJSON) > 0 {
+		return s.rawJSON, nil
+	}
+	// Fallback: re-serialize from struct (loses unmapped fields)
+	if s.rawData == nil {
 		return nil, fmt.Errorf("raw user data unavailable")
 	}
 	return json.Marshal(s.rawData)

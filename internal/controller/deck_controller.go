@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"log"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -100,6 +101,7 @@ func (c *DeckController) BuildDeckRecommendAutoRequest(query model.DeckAutoQuery
 		if err == nil {
 			return payload, nil
 		}
+		log.Printf("[DEBUG] Failed to generate deck automatically via backend/CGo, falling back to local calculation: %v\n", err)
 	}
 	return c.buildDeckRecommendAutoLocal(query)
 }
@@ -136,7 +138,7 @@ func (c *DeckController) buildDeckRecommendAutoWithBackend(query model.DeckAutoQ
 	if err != nil {
 		return nil, err
 	}
-	return c.buildDrawingPayloadFromBackendResult(region, recType, query, result)
+	return c.buildDrawingPayloadFromBackendResult(region, recType, query, option, result)
 }
 
 func (c *DeckController) buildDeckRecommendAutoLocal(query model.DeckAutoQuery) (map[string]interface{}, error) {
@@ -244,27 +246,40 @@ func (c *DeckController) buildDeckRecommendAutoLocal(query model.DeckAutoQuery) 
 	}
 
 	payload := map[string]interface{}{
-		"region":         region,
-		"profile":        profile,
-		"deck_data":      []map[string]interface{}{deckData},
-		"recommend_type": recType,
-		"model_name":     []string{"dfs"},
-		"cost_times":     map[string]float64{"dfs": 0.01},
-		"wait_times":     map[string]float64{"dfs": 0.00},
-		"target":         "score",
+		"region":                region,
+		"profile":               profile,
+		"deck_data":             []map[string]interface{}{deckData},
+		"recommend_type":        recType,
+		"model_name":            []string{"dfs"},
+		"cost_times":            map[string]float64{"dfs": 0.01},
+		"wait_times":            map[string]float64{"dfs": 0.00},
+		"target":                "score",
+		"canvas_thumbnail_path": "mysekai/icon/category_icon/icon_canvas.png",
 	}
 
 	if recType == "challenge" {
 		payload["live_type"] = "single"
+		payload["live_name"] = "单人"
 	} else {
 		payload["live_type"] = "multi"
+		payload["live_name"] = "协力"
 	}
 
+	// Auto-pick current event if not specified
+	var finalEventID int
 	if query.EventID != nil && *query.EventID > 0 {
-		payload["event_id"] = *query.EventID
-		payload["event_name"] = fmt.Sprintf("Event #%d", *query.EventID)
+		finalEventID = *query.EventID
+	} else if recType != "no_event" && recType != "challenge" {
+		if id := c.pickCurrentOrNextEventID(); id > 0 {
+			finalEventID = id
+		}
+	}
+
+	if finalEventID > 0 {
+		payload["event_id"] = finalEventID
+		payload["event_name"] = fmt.Sprintf("Event #%d", finalEventID)
 		if c.events != nil {
-			if event, err := c.events.GetEventByID(*query.EventID); err == nil && event != nil {
+			if event, err := c.events.GetEventByID(finalEventID); err == nil && event != nil {
 				payload["event_name"] = event.Name
 				banner := c.resolveEventBannerPath(event.AssetBundleName)
 				if banner != "" {
@@ -309,7 +324,7 @@ func (c *DeckController) buildBackendOption(region, recType string, query model.
 	}
 	limit := query.Limit
 	if limit <= 0 {
-		limit = 4
+		limit = 5
 	}
 	option := map[string]interface{}{
 		"region":                       region,
@@ -318,6 +333,8 @@ func (c *DeckController) buildBackendOption(region, recType string, query model.
 		"limit":                        limit,
 		"target":                       "score",
 		"live_type":                    "multi",
+		"music_id":                     10000,
+		"music_diff":                   "master",
 		"member":                       5,
 		"multi_live_teammate_power":    250000,
 		"multi_live_teammate_score_up": 200,
@@ -369,7 +386,7 @@ func (c *DeckController) buildBackendOption(region, recType string, query model.
 	return option, nil
 }
 
-func (c *DeckController) buildDrawingPayloadFromBackendResult(region, recType string, query model.DeckAutoQuery, result *service.DeckRecommendResult) (map[string]interface{}, error) {
+func (c *DeckController) buildDrawingPayloadFromBackendResult(region, recType string, query model.DeckAutoQuery, option map[string]interface{}, result *service.DeckRecommendResult) (map[string]interface{}, error) {
 	if result == nil || len(result.Decks) == 0 {
 		return nil, fmt.Errorf("deck recommender returned no deck results")
 	}
@@ -405,16 +422,16 @@ func (c *DeckController) buildDrawingPayloadFromBackendResult(region, recType st
 			if !afterTraining {
 				afterTraining = service.IsAfterTraining(&userCard)
 			}
-			level := userCard.Level
+			level := dc.Level
 			if level <= 0 {
 				level = 60
 			}
-			masterRank := userCard.MasterRank
+			masterRank := dc.MasterRank
 			thumb := builder.BuildCardThumbnail(c.assets, c.assetDir, card, builder.ThumbnailOptions{
 				AfterTraining: afterTraining,
 				TrainRank:     intPtr(masterRank),
 				Level:         intPtr(level),
-				IsPcard:       false,
+				IsPcard:       true,
 			})
 			cardData = append(cardData, map[string]interface{}{
 				"card_thumbnail":    thumb,
@@ -441,23 +458,68 @@ func (c *DeckController) buildDrawingPayloadFromBackendResult(region, recType st
 		})
 	}
 	payload := map[string]interface{}{
-		"region":         region,
-		"profile":        profile,
-		"deck_data":      deckData,
-		"recommend_type": recType,
-		"target":         "score",
-		"model_name":     result.DeckAlgs,
-		"cost_times":     result.CostTimes,
-		"wait_times":     result.WaitTimes,
+		"region":                region,
+		"profile":               profile,
+		"deck_data":             deckData,
+		"recommend_type":        recType,
+		"target":                "score",
+		"model_name":            result.DeckAlgs,
+		"cost_times":            result.CostTimes,
+		"wait_times":            result.WaitTimes,
+		"canvas_thumbnail_path": "mysekai/icon/category_icon/icon_canvas.png",
 	}
+
+	if musicID, ok := option["music_id"]; ok {
+		payload["music_id"] = musicID
+		mIDInt := 0
+		if mIDFloat, success := musicID.(float64); success {
+			mIDInt = int(mIDFloat)
+		} else if mIDI, success := musicID.(int); success {
+			mIDInt = mIDI
+		}
+		if mIDInt == 10000 {
+			payload["music_title"] = "おまかせ (所有歌曲平均) | 技能顺序: 平均情况 | BloomFes花前吸取: 平均值"
+			payload["music_cover_path"] = "omakase.png" // Use omakase jacket
+		}
+	}
+	if teammatePower, ok := option["multi_live_teammate_power"]; ok {
+		payload["multi_live_teammate_power"] = teammatePower
+	}
+	if teammateScoreUp, ok := option["multi_live_teammate_score_up"]; ok {
+		payload["multi_live_teammate_score_up"] = teammateScoreUp
+	}
+
 	if recType == "challenge" {
 		payload["live_type"] = "single"
+		payload["live_name"] = "单人"
 	} else {
 		payload["live_type"] = "multi"
+		payload["live_name"] = "协力"
 	}
-	if query.EventID != nil && *query.EventID > 0 {
-		payload["event_id"] = *query.EventID
+
+	var finalEventID int
+	if eid, ok := option["event_id"].(int); ok && eid > 0 {
+		finalEventID = eid
+	} else if eidFloat, ok := option["event_id"].(float64); ok && eidFloat > 0 {
+		finalEventID = int(eidFloat)
+	} else if query.EventID != nil && *query.EventID > 0 {
+		finalEventID = *query.EventID
 	}
+
+	if finalEventID > 0 {
+		payload["event_id"] = finalEventID
+		payload["event_name"] = fmt.Sprintf("Event #%d", finalEventID)
+		if c.events != nil {
+			if event, err := c.events.GetEventByID(finalEventID); err == nil && event != nil {
+				payload["event_name"] = event.Name
+				banner := c.resolveEventBannerPath(event.AssetBundleName)
+				if banner != "" {
+					payload["event_banner_path"] = banner
+				}
+			}
+		}
+	}
+
 	return payload, nil
 }
 
@@ -560,8 +622,8 @@ func defaultDeckConfig34bd() map[string]interface{} {
 		"disable":      false,
 		"level_max":    true,
 		"episode_read": false,
-		"master_max":   true,
-		"skill_max":    true,
+		"master_max":   false,
+		"skill_max":    false,
 		"canvas":       false,
 	}
 }

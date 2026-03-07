@@ -272,7 +272,7 @@ func (s *DrawingService) callAPI(endpoint string, reqBody interface{}) ([]byte, 
 	}
 	jsonData = s.stripAssetPrefix(jsonData)
 
-	fmt.Printf("[DEBUG] DrawingAPI Request Payload (%s): %s\n", endpoint, string(jsonData))
+	// fmt.Printf("[DEBUG] DrawingAPI Request Payload (%s): %d bytes\n", endpoint, len(jsonData))
 
 	var lastErr error
 	for i := 0; i <= s.retryCount; i++ {
