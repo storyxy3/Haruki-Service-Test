@@ -119,12 +119,18 @@ type RawUserDeck struct {
 	Member5   int `json:"member5"`
 }
 
+type RawUserCardEpisode struct {
+	CardEpisodeID  int    `json:"cardEpisodeId"`
+	ScenarioStatus string `json:"scenarioStatus"`
+}
+
 type RawUserCard struct {
-	CardID                int    `json:"cardId"`
-	Level                 int    `json:"level"`
-	MasterRank            int    `json:"masterRank"`
-	SpecialTrainingStatus string `json:"specialTrainingStatus"`
-	DefaultImage          string `json:"defaultImage"`
+	CardID                int                  `json:"cardId"`
+	Level                 int                  `json:"level"`
+	MasterRank            int                  `json:"masterRank"`
+	SpecialTrainingStatus string               `json:"specialTrainingStatus"`
+	DefaultImage          string               `json:"defaultImage"`
+	Episodes              []RawUserCardEpisode `json:"episodes"`
 }
 
 type RawMusicResult struct {
@@ -403,7 +409,10 @@ func IsAfterTraining(card *RawUserCard) bool {
 	if card == nil {
 		return false
 	}
-	return card.DefaultImage == "special_training" && strings.EqualFold(card.SpecialTrainingStatus, "done")
+	// We only care if the card actually has the training status "done".
+	// We DO NOT check DefaultImage because the user might have trained the card
+	// but intentionally switched the art back to "normal" art.
+	return strings.EqualFold(card.SpecialTrainingStatus, "done")
 }
 
 func normalizePlayResult(item RawMusicResult) string {

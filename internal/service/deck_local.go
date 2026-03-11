@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"log"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -193,9 +194,14 @@ func (l *LocalDeckRecommender) Recommend(req DeckRecommendRequest) (*DeckRecomme
 		}
 	}
 
+	type pair struct {
+		Deck DeckRecommendDeck
+		Alg  string
+	}
+	var pairs []pair
+
 	for _, h := range order {
 		deck := seen[h]
-		agg.Decks = append(agg.Decks, *deck)
 		algsMap := make(map[string]struct{})
 		for _, a := range deck.Algs {
 			algsMap[a] = struct{}{}
@@ -204,9 +210,59 @@ func (l *LocalDeckRecommender) Recommend(req DeckRecommendRequest) (*DeckRecomme
 		for k := range algsMap {
 			algs = append(algs, k)
 		}
-		// Sort the algs for consistent output (dfs+ga+sa)
-		agg.DeckAlgs = append(agg.DeckAlgs, strings.Join(algs, "+"))
+		sort.Strings(algs)
+		pairs = append(pairs, pair{Deck: *deck, Alg: strings.Join(algs, "+")})
 	}
+
+	liveType, _ := req.BatchOption[0]["live_type"].(string)
+	target, _ := req.BatchOption[0]["target"].(string)
+
+	sort.SliceStable(pairs, func(i, j int) bool {
+		d1 := pairs[i].Deck
+		d2 := pairs[j].Deck
+		if liveType == "mysekai" {
+			if d1.MysekaiEventPoint != d2.MysekaiEventPoint {
+				return d1.MysekaiEventPoint > d2.MysekaiEventPoint
+			}
+			return d1.TotalPower > d2.TotalPower
+		} else if target == "power" {
+			return d1.TotalPower > d2.TotalPower
+		} else if target == "skill" {
+			return d1.MultiLiveScoreUp > d2.MultiLiveScoreUp
+		} else if target == "bonus" {
+			if d1.EventBonusRate != d2.EventBonusRate {
+				return d1.EventBonusRate < d2.EventBonusRate
+			}
+			if d1.Score != d2.Score {
+				return d1.Score > d2.Score
+			}
+			return d1.MultiLiveScoreUp > d2.MultiLiveScoreUp
+		}
+		// default target == "score"
+		if d1.Score != d2.Score {
+			return d1.Score > d2.Score
+		}
+		return d1.MultiLiveScoreUp > d2.MultiLiveScoreUp
+	})
+
+	limitFloat, _ := req.BatchOption[0]["limit"].(float64)
+	limitIntOpt, ok := req.BatchOption[0]["limit"].(int)
+	if !ok {
+		limitIntOpt = int(limitFloat)
+	}
+	if limitIntOpt <= 0 {
+		limitIntOpt = len(pairs)
+	}
+	if limitIntOpt > len(pairs) {
+		limitIntOpt = len(pairs)
+	}
+
+	for i := 0; i < limitIntOpt; i++ {
+		agg.Decks = append(agg.Decks, pairs[i].Deck)
+		// Usually concatenate algs if the deck comes from multiple.
+		agg.DeckAlgs = append(agg.DeckAlgs, pairs[i].Alg)
+	}
+
 	return agg, nil
 }
 
@@ -245,6 +301,11 @@ func mapOptionsToCgo(opt map[string]interface{}, region string) deck_cgo.Options
 		return &v
 	}
 
+	limitInt := 0
+	if l := intPtr("limit"); l != nil {
+		limitInt = *l
+	}
+
 	o := deck_cgo.Options{
 		Region:                       strings.ToLower(strings.TrimSpace(region)),
 		Algorithm:                    str("algorithm"),
@@ -264,6 +325,7 @@ func mapOptionsToCgo(opt map[string]interface{}, region string) deck_cgo.Options
 		MultiLiveTeammatePower:       intPtr("multi_live_teammate_power"),
 		MultiLiveTeammateScoreUp:     intPtr("multi_live_teammate_score_up"),
 		BestSkillAsLeader:            boolPtr("best_skill_as_leader"),
+		Limit:                        limitInt,
 	}
 
 	parseCardConfig := func(key string) *deck_cgo.CardConfig {
@@ -347,16 +409,17 @@ func convertCgoDecks(src []deck_cgo.ResultDeck) []DeckRecommendDeck {
 		cards := make([]DeckRecommendCard, 0, len(d.Cards))
 		for _, c := range d.Cards {
 			cards = append(cards, DeckRecommendCard{
-				CardID:         c.CardID,
-				Level:          c.Level,
-				MasterRank:     c.MasterRank,
-				DefaultImage:   c.DefaultImage,
-				SkillLevel:     c.SkillLevel,
-				SkillRate:      float64(c.SkillScoreUp),
-				EventBonusRate: c.EventBonusRate,
-				IsAfterStory:   c.Episode2Read,
-				IsBeforeStory:  !c.Episode1Read,
-				HasCanvasBonus: c.HasCanvasBonus,
+				CardID:          c.CardID,
+				Level:           c.Level,
+				MasterRank:      c.MasterRank,
+				DefaultImage:    c.DefaultImage,
+				SkillLevel:      c.SkillLevel,
+				SkillRate:       float64(c.SkillScoreUp),
+				EventBonusRate:  c.EventBonusRate,
+				IsAfterStory:    c.Episode2Read,
+				IsBeforeStory:   c.Episode1Read,
+				IsAfterTraining: c.AfterTraining,
+				HasCanvasBonus:  c.HasCanvasBonus,
 			})
 		}
 		out = append(out, DeckRecommendDeck{

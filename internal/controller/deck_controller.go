@@ -195,6 +195,7 @@ func (c *DeckController) buildDeckRecommendAutoLocal(query model.DeckAutoQuery) 
 			pick.card,
 			builder.ThumbnailOptions{
 				AfterTraining: service.IsAfterTraining(&pick.userCard),
+				TrainedArt:    service.IsAfterTraining(&pick.userCard),
 				TrainRank:     intPtr(pick.userCard.MasterRank),
 				Level:         intPtr(pick.userCard.Level),
 				IsPcard:       false,
@@ -324,7 +325,7 @@ func (c *DeckController) buildBackendOption(region, recType string, query model.
 	}
 	limit := query.Limit
 	if limit <= 0 {
-		limit = 5
+		limit = 6
 	}
 	option := map[string]interface{}{
 		"region":                       region,
@@ -417,18 +418,30 @@ func (c *DeckController) buildDrawingPayloadFromBackendResult(region, recType st
 			if err != nil || card == nil {
 				continue
 			}
-			userCard := userCardMap[dc.CardID]
-			afterTraining := strings.EqualFold(dc.DefaultImage, "special_training")
-			if !afterTraining {
-				afterTraining = service.IsAfterTraining(&userCard)
+			userCard, hasUserCard := userCardMap[dc.CardID]
+
+			// Trained art depends on the deck recommend result (which might use trained art if available)
+			trainedArt := strings.EqualFold(dc.DefaultImage, "special_training")
+
+			// Real trained status depends on the original user card data, if available.
+			// This decides the rainbow vs yellow stars.
+			originalTrained := dc.IsAfterTraining
+
+			if hasUserCard {
+				originalTrained = service.IsAfterTraining(&userCard)
 			}
+
+			// Do NOT overwrite level, rank, story. The user wants to see the SIMULATED max stats!
 			level := dc.Level
+			masterRank := dc.MasterRank
+
 			if level <= 0 {
 				level = 60
 			}
-			masterRank := dc.MasterRank
+
 			thumb := builder.BuildCardThumbnail(c.assets, c.assetDir, card, builder.ThumbnailOptions{
-				AfterTraining: afterTraining,
+				AfterTraining: originalTrained,
+				TrainedArt:    trainedArt,
 				TrainRank:     intPtr(masterRank),
 				Level:         intPtr(level),
 				IsPcard:       true,
@@ -437,12 +450,30 @@ func (c *DeckController) buildDrawingPayloadFromBackendResult(region, recType st
 				"card_thumbnail":    thumb,
 				"chara_id":          card.CharacterID,
 				"skill_level":       fmt.Sprintf("%d", dc.SkillLevel),
-				"is_after_training": afterTraining,
+				"is_after_training": originalTrained,
 				"skill_rate":        dc.SkillRate,
 				"event_bonus_rate":  dc.EventBonusRate,
 				"is_before_story":   dc.IsBeforeStory,
 				"is_after_story":    dc.IsAfterStory,
 				"has_canvas_bonus":  dc.HasCanvasBonus,
+			})
+		}
+
+		// 对卡牌进行一致性排序，保持队长在首位
+		if len(cardData) > 1 {
+			teammates := cardData[1:]
+			sort.SliceStable(teammates, func(i, j int) bool {
+				di, dj := d.Cards[i+1], d.Cards[j+1]
+				if di.EventBonusRate != dj.EventBonusRate {
+					return di.EventBonusRate > dj.EventBonusRate
+				}
+				if di.MasterRank != dj.MasterRank {
+					return di.MasterRank > dj.MasterRank
+				}
+				if di.Level != dj.Level {
+					return di.Level > dj.Level
+				}
+				return di.CardID > dj.CardID
 			})
 		}
 		deckData = append(deckData, map[string]interface{}{
@@ -581,9 +612,13 @@ func (c *DeckController) pickCurrentOrNextEventID() int {
 	events := c.events.GetEvents()
 	var current *masterdata.Event
 	var next *masterdata.Event
+	var latest *masterdata.Event
 	for _, ev := range events {
 		if ev == nil {
 			continue
+		}
+		if latest == nil || ev.StartAt > latest.StartAt {
+			latest = ev
 		}
 		if ev.StartAt <= now && now <= ev.AggregateAt {
 			if current == nil || ev.StartAt > current.StartAt {
@@ -602,6 +637,9 @@ func (c *DeckController) pickCurrentOrNextEventID() int {
 	}
 	if next != nil {
 		return next.ID
+	}
+	if latest != nil {
+		return latest.ID
 	}
 	return 0
 }

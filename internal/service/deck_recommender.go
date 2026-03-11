@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os/exec"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -57,16 +58,17 @@ type DeckRecommendDeck struct {
 }
 
 type DeckRecommendCard struct {
-	CardID         int     `json:"card_id"`
-	Level          int     `json:"level"`
-	MasterRank     int     `json:"master_rank"`
-	DefaultImage   string  `json:"default_image"`
-	SkillLevel     int     `json:"skill_level"`
-	SkillRate      float64 `json:"skill_rate"`
-	EventBonusRate float64 `json:"event_bonus_rate"`
-	IsBeforeStory  bool    `json:"is_before_story"`
-	IsAfterStory   bool    `json:"is_after_story"`
-	HasCanvasBonus bool    `json:"has_canvas_bonus"`
+	CardID          int     `json:"card_id"`
+	Level           int     `json:"level"`
+	MasterRank      int     `json:"master_rank"`
+	DefaultImage    string  `json:"default_image"`
+	SkillLevel      int     `json:"skill_level"`
+	SkillRate       float64 `json:"skill_rate"`
+	EventBonusRate  float64 `json:"event_bonus_rate"`
+	IsBeforeStory   bool    `json:"is_before_story"`
+	IsAfterStory    bool    `json:"is_after_story"`
+	IsAfterTraining bool    `json:"is_after_training"`
+	HasCanvasBonus  bool    `json:"has_canvas_bonus"`
 }
 
 type deckRecommendAPIItem struct {
@@ -188,6 +190,13 @@ func (s *DeckRecommenderService) Recommend(req DeckRecommendRequest) (*DeckRecom
 		WaitTimes: make(map[string]float64),
 	}
 	seen := make(map[string]struct{})
+
+	type pair struct {
+		Deck DeckRecommendDeck
+		Alg  string
+	}
+	var deckPairs []pair
+
 	for _, item := range items {
 		if strings.TrimSpace(item.Alg) != "" {
 			agg.CostTimes[item.Alg] = item.CostTime
@@ -199,10 +208,61 @@ func (s *DeckRecommenderService) Recommend(req DeckRecommendRequest) (*DeckRecom
 				continue
 			}
 			seen[hash] = struct{}{}
-			agg.Decks = append(agg.Decks, deck)
-			agg.DeckAlgs = append(agg.DeckAlgs, item.Alg)
+			deckPairs = append(deckPairs, pair{Deck: deck, Alg: item.Alg})
 		}
 	}
+
+	liveType, _ := req.BatchOption[0]["live_type"].(string)
+	target, _ := req.BatchOption[0]["target"].(string)
+
+	sort.SliceStable(deckPairs, func(i, j int) bool {
+		d1 := deckPairs[i].Deck
+		d2 := deckPairs[j].Deck
+		if liveType == "mysekai" {
+			if d1.MysekaiEventPoint != d2.MysekaiEventPoint {
+				return d1.MysekaiEventPoint > d2.MysekaiEventPoint
+			}
+			return d1.TotalPower > d2.TotalPower
+		} else if target == "power" {
+			return d1.TotalPower > d2.TotalPower
+		} else if target == "skill" {
+			return d1.MultiLiveScoreUp > d2.MultiLiveScoreUp
+		} else if target == "bonus" {
+			if d1.EventBonusRate != d2.EventBonusRate {
+				return d1.EventBonusRate < d2.EventBonusRate
+			}
+			if d1.Score != d2.Score {
+				return d1.Score > d2.Score
+			}
+			return d1.MultiLiveScoreUp > d2.MultiLiveScoreUp
+		}
+		// default target == "score"
+		if d1.Score != d2.Score {
+			return d1.Score > d2.Score
+		}
+		return d1.MultiLiveScoreUp > d2.MultiLiveScoreUp
+	})
+
+	limitFloat, _ := req.BatchOption[0]["limit"].(float64)
+	limitInt, ok := req.BatchOption[0]["limit"].(int)
+	if !ok {
+		limitInt = int(limitFloat)
+	}
+	if limitInt <= 0 {
+		limitInt = len(deckPairs)
+	}
+	if limitInt > len(deckPairs) {
+		limitInt = len(deckPairs)
+	}
+
+	for i := 0; i < limitInt; i++ {
+		agg.Decks = append(agg.Decks, deckPairs[i].Deck)
+		// For display, usually we concatenate algs if the deck comes from multiple.
+		// For simplicity, we just use the first one it was found in, or if we matched deckHash in `seen`,
+		// we could have appended algs. Lunabot appends `+alg`.
+		agg.DeckAlgs = append(agg.DeckAlgs, deckPairs[i].Alg)
+	}
+
 	return agg, nil
 }
 

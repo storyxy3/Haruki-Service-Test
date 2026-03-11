@@ -12,6 +12,7 @@ import (
 // ThumbnailOptions allows callers to tweak the generated CardFullThumbnailRequest.
 type ThumbnailOptions struct {
 	AfterTraining    bool
+	TrainedArt       bool
 	ThumbnailPath    string
 	RareImgPath      string
 	TrainRank        *int
@@ -28,11 +29,11 @@ func BuildCardThumbnail(assets *asset.AssetHelper, assetDir string, card *master
 	thumbPath := opts.ThumbnailPath
 	if thumbPath == "" {
 		fileSuffix := "_normal.png"
-		if opts.AfterTraining {
+		if opts.TrainedArt {
 			fileSuffix = "_after_training.png"
 		}
 		memberFile := "card_normal.png"
-		if opts.AfterTraining {
+		if opts.TrainedArt {
 			memberFile = "card_after_training.png"
 		}
 		thumbPath = asset.ResolveAssetPath(assets, assetDir,
@@ -65,9 +66,13 @@ func BuildCardThumbnail(assets *asset.AssetHelper, assetDir string, card *master
 	}
 
 	trainRank := opts.TrainRank
+	trainRankImgPath := opts.TrainRankImgPath
 	if trainRank == nil {
 		defaultRank := 0
 		trainRank = &defaultRank
+	} else if *trainRank > 0 && trainRankImgPath == nil {
+		path := asset.ResolveAssetPath(assets, assetDir, filepath.Join("card", fmt.Sprintf("train_rank_%d.png", *trainRank)))
+		trainRankImgPath = &path
 	}
 	framePath := asset.ResolveAssetPath(assets, assetDir,
 		filepath.Join("card", fmt.Sprintf("frame_%s.png", card.CardRarityType)),
@@ -84,7 +89,7 @@ func BuildCardThumbnail(assets *asset.AssetHelper, assetDir string, card *master
 		AttrImgPath:       attrPath,
 		RareImgPath:       rareImg,
 		TrainRank:         trainRank,
-		TrainRankImgPath:  opts.TrainRankImgPath,
+		TrainRankImgPath:  trainRankImgPath,
 		Level:             opts.Level,
 		BirthdayIconPath:  birthdayIcon,
 		IsAfterTraining:   &isAfter,
