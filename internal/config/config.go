@@ -46,6 +46,7 @@ type AssetsConfig struct {
 type UserDataConfig struct {
 	Path          string `yaml:"path"`
 	MusicMetaPath string `yaml:"music_meta_path"`
+	MysekaiPath   string `yaml:"mysekai_path"`
 }
 
 type LogConfig struct {

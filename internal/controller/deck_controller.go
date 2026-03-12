@@ -523,6 +523,9 @@ func (c *DeckController) buildDrawingPayloadFromBackendResult(region, recType st
 	if recType == "challenge" {
 		payload["live_type"] = "single"
 		payload["live_name"] = "单人"
+	} else if recType == "mysekai" {
+		payload["live_type"] = "mysekai"
+		payload["live_name"] = "烤森"
 	} else {
 		payload["live_type"] = "multi"
 		payload["live_name"] = "协力"

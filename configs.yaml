@@ -31,6 +31,7 @@ assets:
 user_data:
   path: "D:/github/testfile/user.json"
   music_meta_path: "D:/github/testfile/music_metas.json"
+  mysekai_path: "D:/github/testfile/mysekai.json"
 
 # ── 日志 ───────────────────────────────────────────────────────────
 log:

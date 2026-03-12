@@ -158,7 +158,7 @@ type RawChallengeLiveReward struct {
 }
 
 // NewUserDataService loads user.json and prepares derived structures. If path is empty, returns nil.
-func NewUserDataService(path string, musicMetaPath string, assetDir string, masterdata *MasterDataService, defaultRegion string) (*UserDataService, error) {
+func NewUserDataService(path string, musicMetaPath string, mysekaiPath string, assetDir string, masterdata *MasterDataService, defaultRegion string) (*UserDataService, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, nil
 	}
@@ -166,6 +166,38 @@ func NewUserDataService(path string, musicMetaPath string, assetDir string, mast
 	if err != nil {
 		return nil, err
 	}
+
+	if strings.TrimSpace(mysekaiPath) != "" {
+		if mysekaiData, err := os.ReadFile(filepath.Clean(mysekaiPath)); err == nil {
+			var baseMap, sekaiMap map[string]interface{}
+			if err1 := json.Unmarshal(data, &baseMap); err1 == nil {
+				if err2 := json.Unmarshal(mysekaiData, &sekaiMap); err2 == nil {
+					// Extract updatedResources directly if it exists, since that contains the actual lists
+					if updatedRes, ok := sekaiMap["updatedResources"].(map[string]interface{}); ok {
+						for k, v := range updatedRes {
+							baseMap[k] = v
+						}
+					}
+					// Always append root things too just in case
+					for k, v := range sekaiMap {
+						if k != "updatedResources" {
+							baseMap[k] = v
+						}
+					}
+					if merged, err3 := json.Marshal(baseMap); err3 == nil {
+						data = merged
+					}
+				} else {
+					fmt.Printf("[WARN] Failed to JSON decode mysekai data: %v\n", err2)
+				}
+			} else {
+				fmt.Printf("[WARN] Failed to JSON decode user data for mysekai merge: %v\n", err1)
+			}
+		} else {
+			fmt.Printf("[WARN] Failed to load mysekai data from %s: %v\n", mysekaiPath, err)
+		}
+	}
+
 	var raw RawUserData
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, err
