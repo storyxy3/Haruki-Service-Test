@@ -392,6 +392,7 @@ type ProfileCardRequest struct {
 	Profile     *BasicProfile       `json:"profile,omitempty"`
 	DataSources []ProfileDataSource `json:"data_sources"`
 	ErrorMsg    *string             `json:"error_message,omitempty"`
+	MysekaiLevel *int               `json:"mysekai_level,omitempty"`
 }
 
 // MusicListRequest represents /api/pjsk/music/list payload
@@ -732,4 +733,179 @@ type CharaBirthdayRequest struct {
 	FlowerTime        *BirthdayEventTime  `json:"flower_time,omitempty"`
 	PartyTime         *BirthdayEventTime  `json:"party_time,omitempty"`
 	AllCharacters     []CharaBirthdayData `json:"all_characters"`
+}
+
+// MysekaiPhenomRequest mirrors DrawingAPI mysekai phenomenon payload.
+type MysekaiPhenomRequest struct {
+	RefreshReason string `json:"refresh_reason"`
+	ImagePath     string `json:"image_path"`
+	BackgroundFill []int `json:"background_fill"`
+	Text          string `json:"text"`
+	TextFill      []int `json:"text_fill"`
+}
+
+// MysekaiVisitCharacter mirrors DrawingAPI mysekai visiting character payload.
+type MysekaiVisitCharacter struct {
+	SDImagePath         string  `json:"sd_image_path"`
+	MemoriaImagePath    *string `json:"memoria_image_path,omitempty"`
+	IsRead              bool    `json:"is_read"`
+	IsReservation       bool    `json:"is_reservation"`
+	ReservationIconPath *string `json:"reservation_icon_path,omitempty"`
+}
+
+// MysekaiResourceNumber mirrors DrawingAPI mysekai resource number payload.
+type MysekaiResourceNumber struct {
+	ImagePath           string `json:"image_path"`
+	Number              int    `json:"number"`
+	TextColor           []int  `json:"text_color"`
+	HasMusicRecord      bool   `json:"has_music_record"`
+	MusicRecordIconPath string `json:"music_record_icon_path,omitempty"`
+}
+
+// MysekaiSiteResourceNumber mirrors DrawingAPI mysekai site resource payload.
+type MysekaiSiteResourceNumber struct {
+	ImagePath       string                  `json:"image_path"`
+	ResourceNumbers []MysekaiResourceNumber `json:"resource_numbers"`
+}
+
+// MysekaiResourceRequest mirrors DrawingAPI mysekai resource request.
+type MysekaiResourceRequest struct {
+	Profile             *ProfileCardRequest          `json:"profile"`
+	BackgroundImagePath *string                      `json:"background_image_path,omitempty"`
+	Phenoms             []MysekaiPhenomRequest       `json:"phenoms"`
+	GateID              int                          `json:"gate_id"`
+	GateLevel           int                          `json:"gate_level"`
+	GateIconPath        string                       `json:"gate_icon_path"`
+	VisitCharacters     []MysekaiVisitCharacter      `json:"visit_characters"`
+	SiteResourceNumbers []MysekaiSiteResourceNumber  `json:"site_resource_numbers"`
+}
+
+type MysekaiFixture struct {
+	ID            int     `json:"id"`
+	ImagePath     string  `json:"image_path"`
+	CharacterID   *int    `json:"character_id,omitempty"`
+	CharaIconPath *string `json:"chara_icon_path,omitempty"`
+	Obtained      bool    `json:"obtained"`
+}
+
+type MysekaiFixtureSubGenre struct {
+	Name            *string           `json:"name,omitempty"`
+	ImagePath       *string           `json:"image_path,omitempty"`
+	ProgressMessage *string           `json:"progress_message,omitempty"`
+	Fixtures        []MysekaiFixture  `json:"fixtures"`
+}
+
+type MysekaiFixtureMainGenre struct {
+	Name            string                   `json:"name"`
+	ImagePath       string                   `json:"image_path"`
+	ProgressMessage *string                  `json:"progress_message,omitempty"`
+	SubGenres       []MysekaiFixtureSubGenre `json:"sub_genres"`
+}
+
+type MysekaiFixtureListRequest struct {
+	Profile         *ProfileCardRequest       `json:"profile,omitempty"`
+	ProgressMessage *string                   `json:"progress_message,omitempty"`
+	ShowID          bool                      `json:"show_id"`
+	MainGenres      []MysekaiFixtureMainGenre `json:"main_genres"`
+}
+
+type MysekaiFixtureColorImage struct {
+	ImagePath string  `json:"image_path"`
+	ColorCode *string `json:"color_code,omitempty"`
+}
+
+type MysekaiFixtureMaterial struct {
+	ImagePath string `json:"image_path"`
+	Quantity  int    `json:"quantity"`
+}
+
+type MysekaiReactionCharacterGroups struct {
+	Number              int        `json:"number"`
+	CharacterUnitIDGroups [][]int   `json:"character_uint_id_groups,omitempty"`
+	CharaIconPathGroups [][]string `json:"chara_icon_path_groups,omitempty"`
+}
+
+type MysekaiFixtureDetailRequest struct {
+	Title                   string                         `json:"title"`
+	Images                  []MysekaiFixtureColorImage     `json:"images"`
+	MainGenreName           string                         `json:"main_genre_name"`
+	MainGenreImagePath      string                         `json:"main_genre_image_path"`
+	SubGenreName            *string                        `json:"sub_genre_name,omitempty"`
+	SubGenreImagePath       *string                        `json:"sub_genre_image_path,omitempty"`
+	Size                    map[string]int                 `json:"size"`
+	FirstPutCost            int                            `json:"first_put_cost"`
+	SecondPutCost           int                            `json:"second_put_cost"`
+	BasicInfo               []string                       `json:"basic_info,omitempty"`
+	CostMaterials           []MysekaiFixtureMaterial       `json:"cost_materials,omitempty"`
+	RecycleMaterials        []MysekaiFixtureMaterial       `json:"recycle_materials,omitempty"`
+	ReactionCharacterGroups []MysekaiReactionCharacterGroups `json:"reaction_character_groups,omitempty"`
+	Tags                    []string                       `json:"tags,omitempty"`
+	Friendcodes             []string                       `json:"friendcodes,omitempty"`
+	FriendcodeSource        string                         `json:"friendcode_source,omitempty"`
+}
+
+type MysekaiGateMaterialItem struct {
+	ImagePath   string `json:"image_path"`
+	Quantity    int    `json:"quantity"`
+	Color       []int  `json:"color,omitempty"`
+	SumQuantity string `json:"sum_quantity"`
+}
+
+type MysekaiGateLevelMaterials struct {
+	Level int                      `json:"level"`
+	Color []int                    `json:"color,omitempty"`
+	Items []MysekaiGateMaterialItem `json:"items"`
+}
+
+type MysekaiGateMaterials struct {
+	ID             int                        `json:"id"`
+	Level          *int                       `json:"level,omitempty"`
+	LevelMaterials []MysekaiGateLevelMaterials `json:"level_materials"`
+}
+
+type MysekaiDoorUpgradeRequest struct {
+	Profile       *ProfileCardRequest   `json:"profile,omitempty"`
+	GateMaterials []MysekaiGateMaterials `json:"gate_materials"`
+}
+
+type MysekaiMusicrecord struct {
+	ID        *int   `json:"id,omitempty"`
+	ImagePath string `json:"image_path"`
+	Obtained  bool   `json:"obtained"`
+}
+
+type MysekaiCategoryMusicrecord struct {
+	Tag             string               `json:"tag"`
+	TagIconPath     string               `json:"tag_icon_path"`
+	ProgressMessage *string              `json:"progress_message,omitempty"`
+	Musicrecords    []MysekaiMusicrecord `json:"musicrecords"`
+}
+
+type MysekaiMusicrecordRequest struct {
+	Profile            *ProfileCardRequest         `json:"profile,omitempty"`
+	ProgressMessage    *string                     `json:"progress_message,omitempty"`
+	CategoryMusicrecords []MysekaiCategoryMusicrecord `json:"category_musicrecords"`
+}
+
+type MysekaiTalkFixtures struct {
+	Fixtures            []MysekaiFixture `json:"fixtures"`
+	NoreadNum           int              `json:"noread_num"`
+	CharacterIDs        [][]int          `json:"character_ids,omitempty"`
+	CharaIconPathGroups [][]string       `json:"chara_icon_path_groups,omitempty"`
+}
+
+type MysekaiSingleTalkMainGenre struct {
+	Name      string                 `json:"name"`
+	ImagePath string                 `json:"image_path"`
+	SubGenres [][]MysekaiTalkFixtures `json:"sub_genres"`
+}
+
+type MysekaiTalkListRequest struct {
+	Profile          *ProfileCardRequest        `json:"profile,omitempty"`
+	SDImagePath      string                     `json:"sd_image_path"`
+	ProgressMessage  *string                    `json:"progress_message,omitempty"`
+	PromptMessage    *string                    `json:"prompt_message,omitempty"`
+	ShowID           bool                       `json:"show_id"`
+	SingleMainGenres []MysekaiSingleTalkMainGenre `json:"single_main_genres"`
+	MultiReads       []MysekaiTalkFixtures      `json:"multi_reads"`
 }

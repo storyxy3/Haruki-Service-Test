@@ -161,6 +161,18 @@ func NewEngine() (*Engine, error) {
 	return &Engine{handle: h}, nil
 }
 
+// SetStaticDataDir configures the global static data directory used by the
+// C++ engine to resolve bundled extra masterdata files.
+func SetStaticDataDir(path string) error {
+	cPath := C.CString(path)
+	defer C.free(unsafe.Pointer(cPath))
+
+	if rc := C.deck_set_static_data_dir(cPath); rc != 0 {
+		return fmt.Errorf("deck_cgo: set static data dir failed")
+	}
+	return nil
+}
+
 // Close destroys the engine and frees all C++ resources.
 func (e *Engine) Close() {
 	if e.handle != nil {

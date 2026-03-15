@@ -142,7 +142,7 @@ func main() {
 			musicSource = cloudMusicSource
 		}
 	}
-	musicController := controller.NewMusicController(musicSource, drawing, cfg.DrawingAPI.BaseURL, assetHelper, userData)
+	musicController := controller.NewMusicController(musicSource, service.NewMasterDataMusicSource(masterdata), drawing, cfg.DrawingAPI.BaseURL, assetHelper, userData)
 	if cloudClients.Sekai != nil {
 		for _, region := range []string{"jp", "en", "tw", "kr", "cn", secondaryRegion} {
 			normalized := strings.ToLower(strings.TrimSpace(region))
@@ -232,7 +232,7 @@ func main() {
 	scoreController := controller.NewScoreController(drawing)
 	deckController := controller.NewDeckController(drawing, cardSource, eventSource, assetHelper, userData, deckRecommender)
 	skController := controller.NewSkController(drawing)
-	mysekaiController := controller.NewMysekaiController(drawing)
+	mysekaiController := controller.NewMysekaiController(drawing, userData, masterdata)
 
 	mux := http.NewServeMux()
 
@@ -317,17 +317,29 @@ func main() {
 	mux.HandleFunc("/api/sk/rank-trace/render", handleSKRankTraceRender(skController))
 	mux.HandleFunc("/api/sk/winrate/build", handleSKBuild(skController))
 	mux.HandleFunc("/api/sk/winrate/render", handleSKWinrateRender(skController))
-	mux.HandleFunc("/api/mysekai/resource/build", handleMysekaiBuild(mysekaiController))
+	mux.HandleFunc("/api/mysekai/resource/build", handleMysekaiBuildWith(func(req interface{}) (interface{}, error) {
+		return mysekaiController.BuildResourceRequest(req)
+	}))
 	mux.HandleFunc("/api/mysekai/resource/render", handleMysekaiResourceRender(mysekaiController))
-	mux.HandleFunc("/api/mysekai/fixture-list/build", handleMysekaiBuild(mysekaiController))
+	mux.HandleFunc("/api/mysekai/fixture-list/build", handleMysekaiBuildWith(func(req interface{}) (interface{}, error) {
+		return mysekaiController.BuildFixtureListRequest(req)
+	}))
 	mux.HandleFunc("/api/mysekai/fixture-list/render", handleMysekaiFixtureListRender(mysekaiController))
-	mux.HandleFunc("/api/mysekai/fixture-detail/build", handleMysekaiBuild(mysekaiController))
+	mux.HandleFunc("/api/mysekai/fixture-detail/build", handleMysekaiBuildWith(func(req interface{}) (interface{}, error) {
+		return mysekaiController.BuildFixtureDetailRequest(req)
+	}))
 	mux.HandleFunc("/api/mysekai/fixture-detail/render", handleMysekaiFixtureDetailRender(mysekaiController))
-	mux.HandleFunc("/api/mysekai/door-upgrade/build", handleMysekaiBuild(mysekaiController))
+	mux.HandleFunc("/api/mysekai/door-upgrade/build", handleMysekaiBuildWith(func(req interface{}) (interface{}, error) {
+		return mysekaiController.BuildDoorUpgradeRequest(req)
+	}))
 	mux.HandleFunc("/api/mysekai/door-upgrade/render", handleMysekaiDoorUpgradeRender(mysekaiController))
-	mux.HandleFunc("/api/mysekai/music-record/build", handleMysekaiBuild(mysekaiController))
+	mux.HandleFunc("/api/mysekai/music-record/build", handleMysekaiBuildWith(func(req interface{}) (interface{}, error) {
+		return mysekaiController.BuildMusicRecordRequest(req)
+	}))
 	mux.HandleFunc("/api/mysekai/music-record/render", handleMysekaiMusicRecordRender(mysekaiController))
-	mux.HandleFunc("/api/mysekai/talk-list/build", handleMysekaiBuild(mysekaiController))
+	mux.HandleFunc("/api/mysekai/talk-list/build", handleMysekaiBuildWith(func(req interface{}) (interface{}, error) {
+		return mysekaiController.BuildTalkListRequest(req)
+	}))
 	mux.HandleFunc("/api/mysekai/talk-list/render", handleMysekaiTalkListRender(mysekaiController))
 
 	mux.HandleFunc("/api/honor/build", handleHonorBuild(honorController))
@@ -1833,7 +1845,7 @@ func handleSKRender(render func(map[string]interface{}) ([]byte, error)) http.Ha
 	}
 }
 
-func handleMysekaiBuild(ctrl *controller.MysekaiController) http.HandlerFunc {
+func handleMysekaiBuildWith(build func(interface{}) (interface{}, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -1844,7 +1856,7 @@ func handleMysekaiBuild(ctrl *controller.MysekaiController) http.HandlerFunc {
 			http.Error(w, fmt.Sprintf("Invalid request: %v", err), http.StatusBadRequest)
 			return
 		}
-		payload, err := ctrl.Build(req)
+		payload, err := build(req)
 		if err != nil {
 			slog.Error("Failed to build mysekai request", "error", err)
 			http.Error(w, fmt.Sprintf("Failed to build request: %v", err), http.StatusInternalServerError)

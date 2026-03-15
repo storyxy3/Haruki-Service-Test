@@ -17,6 +17,8 @@ package service
 import (
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -59,6 +61,12 @@ func NewLocalDeckRecommender(
 		algs = []string{"dfs", "sa", "ga"}
 	}
 
+	if staticDataDir := resolveDeckStaticDataDir(); staticDataDir != "" {
+		if err := deck_cgo.SetStaticDataDir(staticDataDir); err != nil {
+			return nil, fmt.Errorf("LocalDeckRecommender: set static data dir: %w", err)
+		}
+	}
+
 	pool, err := deck_cgo.NewPool(
 		masterdataDir,
 		nil, // no in-memory masterdata map; load from dir
@@ -76,6 +84,32 @@ func NewLocalDeckRecommender(
 		defaultAlgs: algs,
 		timeout:     timeout,
 	}, nil
+}
+
+func resolveDeckStaticDataDir() string {
+	if wd, err := os.Getwd(); err == nil {
+		candidate := filepath.Join(wd, "data")
+		if dirExists(candidate) {
+			return candidate
+		}
+	}
+
+	if exePath, err := os.Executable(); err == nil {
+		candidate := filepath.Join(filepath.Dir(exePath), "data")
+		if dirExists(candidate) {
+			return candidate
+		}
+	}
+
+	return ""
+}
+
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return info.IsDir()
 }
 
 // Enabled always returns true for a successfully created LocalDeckRecommender.

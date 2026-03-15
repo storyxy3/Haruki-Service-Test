@@ -60,6 +60,18 @@ DECK_API void deck_engine_destroy(DeckEngineHandle handle) {
     delete cast(handle);
 }
 
+DECK_API int deck_set_static_data_dir(const char* data_dir) {
+    try {
+        if (data_dir == nullptr) {
+            return -1;
+        }
+        init_data_path(std::string(data_dir));
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
 DECK_API int deck_engine_update_masterdata(
     DeckEngineHandle handle,
     const char* base_dir,

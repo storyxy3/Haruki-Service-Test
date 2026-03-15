@@ -18,18 +18,20 @@ import (
 )
 
 type MusicBuilder struct {
-	source   service.MusicDataSource
-	assets   *asset.AssetHelper
-	assetDir string
-	userData *service.UserDataService
+	source         service.MusicDataSource
+	fallbackSource service.MusicDataSource
+	assets         *asset.AssetHelper
+	assetDir       string
+	userData       *service.UserDataService
 }
 
-func NewMusicBuilder(source service.MusicDataSource, a *asset.AssetHelper, d string, u *service.UserDataService) *MusicBuilder {
+func NewMusicBuilder(source service.MusicDataSource, fallbackSource service.MusicDataSource, a *asset.AssetHelper, d string, u *service.UserDataService) *MusicBuilder {
 	return &MusicBuilder{
-		source:   source,
-		assets:   a,
-		assetDir: d,
-		userData: u,
+		source:         source,
+		fallbackSource: fallbackSource,
+		assets:         a,
+		assetDir:       d,
+		userData:       u,
 	}
 }
 
@@ -352,6 +354,11 @@ func (b *MusicBuilder) buildDifficultyInfo(musicID int) (*model.DifficultyInfo, 
 // buildVocalInfo builds vocal information.
 func (b *MusicBuilder) buildVocalInfo(musicID int, region string) (*model.MusicVocalInfo, error) {
 	vocals, err := b.source.GetMusicVocals(musicID)
+	if err != nil {
+		if b.fallbackSource != nil {
+			vocals, err = b.fallbackSource.GetMusicVocals(musicID)
+		}
+	}
 	if err != nil {
 		return &model.MusicVocalInfo{
 			VocalInfo:   make(map[string]interface{}),

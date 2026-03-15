@@ -173,6 +173,10 @@ func (b *ProfileBuilder) buildPCards(userCards []service.RawUserCard, decks []se
 		}
 
 		isAfter := service.IsAfterTraining(userCard)
+		displayAfterTraining := false
+		if userCard != nil {
+			displayAfterTraining = strings.EqualFold(userCard.DefaultImage, "special_training")
+		}
 		var level *int
 		if userCard != nil {
 			level = &userCard.Level
@@ -180,6 +184,7 @@ func (b *ProfileBuilder) buildPCards(userCards []service.RawUserCard, decks []se
 
 		results = append(results, BuildCardThumbnail(b.assets, b.assetDir, card, ThumbnailOptions{
 			AfterTraining: isAfter,
+			TrainedArt:    displayAfterTraining,
 			IsPcard:       true,
 			Level:         level,
 		}))

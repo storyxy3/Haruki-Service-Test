@@ -16,8 +16,9 @@ import (
 // MusicController 音乐控制器
 // 定义在这里以便 builder 方法挂载
 type MusicController struct {
-	source     service.MusicDataSource
-	sources    map[string]service.MusicDataSource
+	source         service.MusicDataSource
+	fallbackSource service.MusicDataSource
+	sources        map[string]service.MusicDataSource
 	defaultRegion string
 	drawing    *service.DrawingService
 	drawingURL string
@@ -29,6 +30,7 @@ type MusicController struct {
 // NewMusicController 创建音乐控制器
 func NewMusicController(
 	source service.MusicDataSource,
+	fallbackSource service.MusicDataSource,
 	drawing *service.DrawingService,
 	drawingURL string,
 	assetHelper *asset.AssetHelper,
@@ -39,13 +41,14 @@ func NewMusicController(
 		assetDir = assetHelper.Primary()
 	}
 	ctrl := &MusicController{
-		source:     source,
-		sources:    make(map[string]service.MusicDataSource),
-		drawing:    drawing,
-		drawingURL: drawingURL,
-		assetDir:   assetDir,
-		assets:     assetHelper,
-		userData:   userData,
+		source:         source,
+		fallbackSource: fallbackSource,
+		sources:        make(map[string]service.MusicDataSource),
+		drawing:        drawing,
+		drawingURL:     drawingURL,
+		assetDir:       assetDir,
+		assets:         assetHelper,
+		userData:       userData,
 	}
 	ctrl.defaultRegion = ctrl.normalizeRegion("jp")
 	ctrl.registerSource(source)
@@ -164,7 +167,7 @@ func (c *MusicController) buildMusicChartRequest(query model.MusicChartQuery) (*
 		return nil, fmt.Errorf("failed to search music: %w", err)
 	}
 
-	b := builder.NewMusicBuilder(source, c.assets, c.assetDir, c.userData)
+	b := builder.NewMusicBuilder(source, c.fallbackSource, c.assets, c.assetDir, c.userData)
 	return b.BuildMusicChartRequest(query, music)
 }
 
@@ -182,7 +185,7 @@ func (c *MusicController) BuildMusicDetail(query model.MusicQuery) (*model.Drawi
 
 	region := effectiveRegion
 
-	b := builder.NewMusicBuilder(source, c.assets, c.assetDir, c.userData)
+	b := builder.NewMusicBuilder(source, c.fallbackSource, c.assets, c.assetDir, c.userData)
 	req, err := b.BuildMusicDetailRequest(music, region)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build music request: %w", err)
@@ -228,8 +231,8 @@ func (c *MusicController) BuildMusicBriefListRequest(musicIDs []int, difficulty,
 			return nil, fmt.Errorf("music %d not found: %w", id, err)
 		}
 
-		level := builder.NewMusicBuilder(source, c.assets, c.assetDir, c.userData).GetDifficultyLevel(music.ID, diff)
-		jacket := builder.NewMusicBuilder(source, c.assets, c.assetDir, c.userData).BuildMusicJacketPath(music.AssetBundleName)
+		level := builder.NewMusicBuilder(source, c.fallbackSource, c.assets, c.assetDir, c.userData).GetDifficultyLevel(music.ID, diff)
+		jacket := builder.NewMusicBuilder(source, c.fallbackSource, c.assets, c.assetDir, c.userData).BuildMusicJacketPath(music.AssetBundleName)
 
 		list = append(list, model.MusicBriefListItem{
 			ID:              music.ID,
@@ -260,7 +263,7 @@ func (c *MusicController) getDifficultyLevel(musicID int, diff string, src servi
 	if src == nil {
 		return 0
 	}
-	b := builder.NewMusicBuilder(src, c.assets, c.assetDir, c.userData)
+	b := builder.NewMusicBuilder(src, c.fallbackSource, c.assets, c.assetDir, c.userData)
 	return b.GetDifficultyLevel(musicID, diff)
 }
 
@@ -359,7 +362,7 @@ func (c *MusicController) BuildMusicListRequest(query model.MusicListQuery) (*mo
 			continue
 		}
 
-		jackets[music.ID] = builder.NewMusicBuilder(source, c.assets, c.assetDir, c.userData).BuildMusicJacketPath(music.AssetBundleName)
+		jackets[music.ID] = builder.NewMusicBuilder(source, c.fallbackSource, c.assets, c.assetDir, c.userData).BuildMusicJacketPath(music.AssetBundleName)
 		list = append(list, model.MusicListItem{
 			ID:         music.ID,
 			Difficulty: level,

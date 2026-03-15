@@ -129,18 +129,23 @@ func (b *HonorBuilder) buildNormalHonorRequest(req *model.HonorRequest, honorID 
 	} else {
 		honorImgPath = fmt.Sprintf("honor/%s/degree_%s.png", assetName, ms)
 	}
-	// Some event/WL honor bundles only provide rank_main/rank_sub without degree_*.
-	if gtype == "event" || gtype == "wl_event" {
-		if !b.existsInPrimary(honorImgPath) {
-			var fallback string
-			if group.BackgroundAssetbundleName != nil && *group.BackgroundAssetbundleName != "" {
-				fallback = fmt.Sprintf("honor/%s/rank_%s.png", *group.BackgroundAssetbundleName, ms)
-			} else {
-				fallback = fmt.Sprintf("honor/%s/rank_%s.png", assetName, ms)
+	if (gtype == "event" || gtype == "wl_event") && !b.existsInPrimary(honorImgPath) {
+		if derivedBg := deriveHonorBackgroundAssetName(assetName); derivedBg != "" {
+			candidate := fmt.Sprintf("honor/%s/degree_%s.png", derivedBg, ms)
+			if b.existsInPrimary(candidate) {
+				honorImgPath = candidate
 			}
-			if b.existsInPrimary(fallback) {
-				honorImgPath = fallback
-			}
+		}
+	}
+	if (gtype == "event" || gtype == "wl_event") && !b.existsInPrimary(honorImgPath) {
+		var fallback string
+		if group.BackgroundAssetbundleName != nil && *group.BackgroundAssetbundleName != "" {
+			fallback = fmt.Sprintf("honor/%s/rank_%s.png", *group.BackgroundAssetbundleName, ms)
+		} else {
+			fallback = fmt.Sprintf("honor/%s/rank_%s.png", assetName, ms)
+		}
+		if b.existsInPrimary(fallback) {
+			honorImgPath = fallback
 		}
 	}
 	req.HonorImgPath = &honorImgPath
@@ -158,7 +163,7 @@ func (b *HonorBuilder) buildNormalHonorRequest(req *model.HonorRequest, honorID 
 			rel1 := fmt.Sprintf("honor/%s/rank_%s.png", assetName, ms)
 			rel2 := fmt.Sprintf("honor/%s/degree_%s.png", assetName, ms)
 
-			if b.existsInPrimary(rel1) {
+			if rel1 != honorImgPath && b.existsInPrimary(rel1) {
 				rankImgPath = rel1
 			} else if honorImgPath != rel2 { // 避免 rank_img 和 background 重复
 				if b.existsInPrimary(rel2) {
@@ -321,4 +326,16 @@ func absInt(v int) int {
 		return -v
 	}
 	return v
+}
+
+func deriveHonorBackgroundAssetName(assetName string) string {
+	assetName = strings.TrimSpace(assetName)
+	if !strings.HasPrefix(assetName, "honor_top_") {
+		return ""
+	}
+	parts := strings.SplitN(assetName, "_", 4)
+	if len(parts) != 4 {
+		return ""
+	}
+	return "honor_bg_" + parts[3]
 }

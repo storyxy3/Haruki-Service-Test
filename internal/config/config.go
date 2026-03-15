@@ -89,7 +89,7 @@ type DeckRecommendServerConfig struct {
 
 // Load loads the configuration from the given path.
 func Load(path string) (*Config, error) {
-	f, err := os.Open(path)
+	f, err := openConfig(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open config file: %w", err)
 	}
@@ -101,6 +101,29 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to decode config file: %w", err)
 	}
 	return &cfg, nil
+}
+
+func openConfig(path string) (*os.File, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return nil, fmt.Errorf("empty config path")
+	}
+
+	if filepath.IsAbs(path) {
+		return os.Open(path)
+	}
+
+	if f, err := os.Open(path); err == nil {
+		return f, nil
+	}
+
+	exePath, err := os.Executable()
+	if err != nil {
+		return nil, os.ErrNotExist
+	}
+
+	exeDir := filepath.Dir(exePath)
+	return os.Open(filepath.Join(exeDir, path))
 }
 
 // Roots returns combined primary+legacy asset directories (cleaned).

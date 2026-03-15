@@ -465,6 +465,17 @@ func dispatchMysekai(ctrl *controller.MysekaiController, mode string, cmd Parsed
 			return nil, fmt.Errorf("mysekai: invalid params: %w", err)
 		}
 		payload = raw
+	} else {
+		base := map[string]interface{}{}
+		if strings.TrimSpace(cmd.Region) != "" {
+			base["region"] = cmd.Region
+		}
+		if strings.TrimSpace(cmd.Query) != "" {
+			base["query"] = cmd.Query
+		}
+		if len(base) > 0 {
+			payload = base
+		}
 	}
 	switch mode {
 	case "mysekai-resource":

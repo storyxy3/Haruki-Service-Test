@@ -41,6 +41,14 @@ DECK_API DeckEngineHandle deck_engine_create(void);
 DECK_API void deck_engine_destroy(DeckEngineHandle handle);
 
 /**
+ * Set the static data directory used by the engine for bundled extra data files
+ * such as worldBloomSupportDeckBonusesWL1/WL2.
+ * @param data_dir  Directory path containing static JSON files (NUL-terminated)
+ * @return 0 on success, non-zero on error
+ */
+DECK_API int deck_set_static_data_dir(const char* data_dir);
+
+/**
  * Update master data from a local directory.
  * @param handle  Engine handle
  * @param base_dir  Base directory of masterdata JSON files (NUL-terminated)
